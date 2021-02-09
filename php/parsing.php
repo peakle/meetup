@@ -28,7 +28,7 @@ $resultList = [];
     $responseList = [];
 
     for (; $requestCount >= 0; $requestCount--) {
-        $promisePool[] = $client->getAsync('http://worldclockapi.com/api/json/est/now', [
+        $promisePool[] = $client->getAsync('http://sam.wake-app.net/time', [
             RequestOptions::HEADERS => [
                 'Connection' => 'Close'
             ]

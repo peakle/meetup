@@ -135,7 +135,7 @@ func handleWorker(idCh, outCh chan string, wg *sync.WaitGroup) {
 		req := fasthttp.AcquireRequest()
 		resp := fasthttp.AcquireResponse()
 
-		req.SetRequestURI("http://worldclockapi.com/api/json/est/now")
+		req.SetRequestURI("http://sam.wake-app.net/time")
 		req.SetConnectionClose()
 
 		err := client.DoTimeout(req, resp, 10*time.Second)

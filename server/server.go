@@ -15,6 +15,7 @@ func main() {
 		path := string(ctx.Path())
 
 		if strings.HasPrefix(path, "/time") {
+			ctx.SetContentType("application/json")
 			fmt.Fprint(ctx, fmt.Sprintf(`{"currentDateTime": "%s"}`, time.Now().Format("2006-02-01T15:04-07:00")))
 		} else {
 			ctx.SetConnectionClose()

@@ -3,3 +3,4 @@ php/vendor
 go/meetup
 .idea
 ps.log
+server/meetup_server
