@@ -98,10 +98,6 @@ func main() {
 			maxWorker = 1
 		}
 
-		if maxWorker > 400 {
-			maxWorker = 400
-		}
-
 		for workerCount := 0; workerCount < maxWorker; workerCount++ {
 			workerWg.Add(1)
 			go handleWorker(idCh, outCh, workerWg)
@@ -181,7 +177,7 @@ func handle(idCh, outCh chan string, wg *sync.WaitGroup) {
 func fillTime(outCh chan string, doneCh chan struct{}, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	const maxUpsertLen = 1000
+	const maxUpsertLen = 5000
 
 	var err error
 	var timeList = make([]string, 0, maxUpsertLen)
@@ -194,21 +190,8 @@ func fillTime(outCh chan string, doneCh chan struct{}, wg *sync.WaitGroup) {
 	}
 	defer CloseManager()
 
-	var ticker = time.NewTicker(time.Second * 3)
-	defer ticker.Stop()
 	for {
 		select {
-		case <-ticker.C:
-			if len(timeList) > 0 {
-				err = insertTime(timeList)
-				if err != nil {
-					log.Printf("on InsertToDbTime: %s \n", err.Error())
-					continue
-				}
-
-				timeList = timeList[:0]
-			}
-
 		case tm, ok = <-outCh:
 			if len(timeList) >= maxUpsertLen {
 				err = insertTime(timeList)
