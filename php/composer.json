@@ -1,0 +1,8 @@
+{
+    "name": "root/php",
+    "require": {
+        "guzzlehttp/guzzle": "^7.2",
+        "ext-pdo": "*",
+        "ext-json": "*"
+    }
+}
