@@ -98,6 +98,10 @@ func main() {
 			maxWorker = 1
 		}
 
+		if maxWorker > 400 {
+			maxWorker = 400
+		}
+
 		for workerCount := 0; workerCount < maxWorker; workerCount++ {
 			workerWg.Add(1)
 			go handleWorker(idCh, outCh, workerWg)
