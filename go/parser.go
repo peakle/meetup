@@ -136,7 +136,9 @@ func handleWorker(idCh, outCh chan string, wg *sync.WaitGroup) {
 		resp := fasthttp.AcquireResponse()
 
 		req.SetRequestURI("http://sam.wake-app.net/time")
+
 		req.SetConnectionClose()
+		resp.SetConnectionClose()
 
 		err := client.DoTimeout(req, resp, 10*time.Second)
 		if err != nil {

@@ -10,5 +10,5 @@ clean:
 build: clean
 	@echo ">> building..."
 	@ CGO_ENABLED=0 GOOS=${GOOS} GOARCH=${GOARCH} \
-	    go build -ldflags "-X main.Version=$(VERSION) -X main.CommitID=$(COMMIT_ID)" -o $(NAME) ./parser.go ./manager.go
-	@chmod +x $(NAME)
+	    go build -ldflags "-X main.Version=$(VERSION) -X main.CommitID=$(COMMIT_ID)" -o ../$(NAME) ./parser.go ./manager.go
+	@chmod +x ../$(NAME)

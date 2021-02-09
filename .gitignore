@@ -4,3 +4,6 @@ go/meetup
 .idea
 ps.log
 server/meetup_server
+
+meetup_server
+meetup
