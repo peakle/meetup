@@ -25,11 +25,8 @@ func main() {
 	server := fasthttp.Server{
 		Handler:              requestHandler,
 		IdleTimeout:          30 * time.Second,
-		TCPKeepalivePeriod:   3 * time.Second,
-		TCPKeepalive:         true,
 		MaxKeepaliveDuration: 30 * time.Second,
-		ReadTimeout:          3 * time.Second,
-		WriteTimeout:         3 * time.Second,
+		TCPKeepalive:         false,
 	}
 
 	log.Fatal(server.ListenAndServe(":80"))
