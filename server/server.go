@@ -26,8 +26,6 @@ func main() {
 		Handler:              requestHandler,
 		IdleTimeout:          3 * time.Second,
 		MaxKeepaliveDuration: 3 * time.Second,
-		ReadTimeout:          3 * time.Second,
-		WriteTimeout:         3 * time.Second,
 		TCPKeepalive:         false,
 		DisableKeepalive:     true,
 		CloseOnShutdown:      true,

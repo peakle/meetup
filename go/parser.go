@@ -98,8 +98,8 @@ func main() {
 			maxWorker = 1
 		}
 
-		if maxWorker > 300 {
-			maxWorker = 300
+		if maxWorker > 400 {
+			maxWorker = 400
 		}
 
 		for workerCount := 0; workerCount < maxWorker; workerCount++ {
