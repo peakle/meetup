@@ -8,6 +8,8 @@ use GuzzleHttp\RequestOptions;
 
 use function GuzzleHttp\Promise\settle;
 
+gc_disable();
+
 {
     $fh = STDIN;
     $requestCount = (int)fgets($fh);
@@ -117,5 +119,5 @@ $resultList = [];
 $end = microtime(true);
 
 echo sprintf("execution time = %s \n", ($end - $start));
-echo sprintf("Sys memory = %s \n", (memory_get_usage(true) / (1024 * 1024)));
+echo sprintf("Sys memory = %s \n", (memory_get_usage(true)));
 echo sprintf("error count = %s \n", $errorCount);
