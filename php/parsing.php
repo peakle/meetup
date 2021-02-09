@@ -27,7 +27,7 @@ $resultList = [];
     $client = new Client();
     $responseList = [];
 
-    for (; $requestCount > 0; $requestCount--) {
+    for (; $requestCount >= 0; $requestCount--) {
         $promisePool[] = $client->getAsync('http://worldclockapi.com/api/json/est/now', [
             RequestOptions::HEADERS => [
                 'Connection' => 'Close'
@@ -57,23 +57,6 @@ $resultList = [];
 
             $responseList = [];
         }
-    }
-
-    foreach ($responseList as $response) {
-        if (isset($response['value'])) {
-            // usleep(500000);
-
-            /** @var Response $resp */
-            $resp = $response['value'];
-
-            $result = json_decode($resp->getBody()->getContents(), true);
-
-            $resultList[] = $result['currentDateTime'];
-
-            continue;
-        }
-
-        $errorCount++;
     }
 }
 

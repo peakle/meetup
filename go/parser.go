@@ -252,7 +252,7 @@ func fillTime(outCh chan string, doneCh chan struct{}, wg *sync.WaitGroup) {
 func fillGrouped(outCh chan string, doneCh chan struct{}, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	const maxUpsertLen = 10
+	const maxUpsertLen = 5000
 
 	var err error
 	var ids = make([]string, 0, maxUpsertLen)
@@ -265,21 +265,8 @@ func fillGrouped(outCh chan string, doneCh chan struct{}, wg *sync.WaitGroup) {
 	}
 	defer CloseManager()
 
-	var ticker = time.NewTicker(time.Second * 5)
-	defer ticker.Stop()
-
 	for {
 		select {
-		case <-ticker.C:
-			if len(ids) > 0 {
-				err = insertGrouped(ids)
-				if err != nil {
-					log.Printf("on insertGrouped: %s \n", err.Error())
-					continue
-				}
-
-				ids = ids[:0]
-			}
 		case id, ok = <-outCh:
 			if len(ids) >= maxUpsertLen {
 				err = insertGrouped(ids)
