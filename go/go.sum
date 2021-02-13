@@ -17,6 +17,8 @@ github.com/valyala/fasthttp v1.20.0/go.mod h1:jjraHZVbKOXftJfsOYoAjaeygpj5hr8erm
 github.com/valyala/tcplisten v0.0.0-20161114210144-ceec8f93295a/go.mod h1:v3UYOV9WzVtRmSR+PDvWpU/qWl4Wa5LApYYX4ZtKbio=
 github.com/wakeapp/go-sql-generator v0.0.0-20191016142837-5e468acc8837 h1:MGEoZrBCK2fNkVlA987uk+UTnm68R+o0VYAu4hXRfdE=
 github.com/wakeapp/go-sql-generator v0.0.0-20191016142837-5e468acc8837/go.mod h1:pWo3P/gv3Du88L6miFV0Cy8F+GPkkKZdrXEceZ1jhn8=
+github.com/wakeapp/go-sql-generator v0.0.1 h1:ejeZO06N8hTiPkSl5ix6fQUEpJSQSWVyyMnPoJ2DaX0=
+github.com/wakeapp/go-sql-generator v0.0.1/go.mod h1:xxM72PMXzfvDfqLe6kAhDlnYjttaxP4oNVH2B1E8mIM=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
 golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9/go.mod h1:LzIPMQfyMNhhGPhUkYOs5KpL4U8rLKemX1yGLhDgUto=
 golang.org/x/net v0.0.0-20190404232315-eb5bcb51f2a3/go.mod h1:t9HGtf8HONx5eT2rtn7q6eTqICYqUVnKs3thJo3Qplg=

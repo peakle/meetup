@@ -16,7 +16,6 @@ func main() {
 
 		if strings.HasPrefix(path, "/time") {
 			ctx.SetContentType("application/json")
-			ctx.SetConnectionClose()
 
 			fmt.Fprint(ctx, fmt.Sprintf(`{"currentDateTime": "%s"}`, time.Now().Format("2006-02-01T15:04-07:00")))
 		}
@@ -26,8 +25,7 @@ func main() {
 		Handler:              requestHandler,
 		IdleTimeout:          3 * time.Second,
 		MaxKeepaliveDuration: 3 * time.Second,
-		TCPKeepalive:         false,
-		DisableKeepalive:     true,
+		TCPKeepalive:         true,
 		CloseOnShutdown:      true,
 	}
 

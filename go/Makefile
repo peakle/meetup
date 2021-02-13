@@ -9,5 +9,5 @@ clean:
 
 build: clean
 	@echo ">> building..."
-	@ go build -ldflags "-X main.Version=$(VERSION) -X main.CommitID=$(COMMIT_ID)" -o $(NAME) ./parser.go ./manager.go
+	@ go build -ldflags "-X main.Version=$(VERSION) -X main.CommitID=$(COMMIT_ID)" -o $(NAME) ./parser.go
 	@chmod +x $(NAME)

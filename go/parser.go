@@ -1,7 +1,7 @@
 package main
 
 import (
-	"database/sql"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -9,33 +9,16 @@ import (
 	"os"
 	"runtime"
 	"runtime/pprof"
-	"strconv"
 	"sync"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql" // add mysql driver
-
 	"github.com/valyala/fasthttp"
-	sg "github.com/wakeapp/go-sql-generator"
 )
 
 type timeResponse struct {
 	CurrentDateTime string `json:"currentDateTime"`
 }
 
-type config struct {
-	Host     string
-	Username string
-	Pass     string
-	Port     string
-	DBName   string
-}
-
-type SQLManager struct {
-	conn *sql.DB
-}
-
-var m *SQLManager
 var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
 var reqs = flag.Int("reqs", 100, "write memory profile to `file`")
 
@@ -47,7 +30,6 @@ func main() {
 	var startTime = time.Now()
 	var idCh = make(chan string, 100)
 	var outCh = make(chan string, 100)
-	var doneCh = make(chan struct{}, 1)
 	var errCh = make(chan int, 1000)
 	var workerWg = &sync.WaitGroup{}
 	var wg = &sync.WaitGroup{}
@@ -60,8 +42,9 @@ func main() {
 		close(idCh)
 	}()
 
-	wg.Add(1)
-	go fillTime(outCh, doneCh, wg)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go fillTime(ctx, outCh, wg)
 
 	var maxWorker = reqCount
 	if maxWorker <= 0 {
@@ -78,24 +61,20 @@ func main() {
 	}
 
 	workerWg.Wait()
+
 	close(outCh)
 	close(errCh)
 
-	errCount := 0
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for range errCh {
-			errCount++
-		}
-	}()
+	var errCount = 0
+	for range errCh {
+		errCount++
+	}
 
-	doneCh <- struct{}{} // release fillTime
-
+	cancel()
 	wg.Wait()
 
 	fmt.Println("execution time: ", time.Since(startTime))
-	fmt.Println("errorCount time: ", errCount)
+	fmt.Println("error count: ", errCount)
 
 	memPeakUsage()
 
@@ -104,8 +83,10 @@ func main() {
 		if err != nil {
 			log.Fatal("could not create memory profile: ", err)
 		}
-		defer f.Close() // error handling omitted for example
-		runtime.GC()    // get up-to-date statistics
+		defer f.Close()
+
+		runtime.GC()
+
 		if err := pprof.WriteHeapProfile(f); err != nil {
 			log.Fatal("could not write memory profile: ", err)
 		}
@@ -115,7 +96,14 @@ func main() {
 func handleWorker(idCh, outCh chan string, errCh chan int, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	client := &fasthttp.Client{}
+	client := &fasthttp.Client{
+		MaxConnDuration:     10 * time.Second,
+		MaxIdleConnDuration: 10 * time.Second,
+		WriteTimeout:        10 * time.Second,
+		ReadTimeout:         10 * time.Second,
+		MaxConnWaitTimeout:  10 * time.Second,
+		MaxConnsPerHost:     100000,
+	}
 
 	var tm = timeResponse{}
 	var t time.Time
@@ -124,9 +112,7 @@ func handleWorker(idCh, outCh chan string, errCh chan int, wg *sync.WaitGroup) {
 		resp := fasthttp.AcquireResponse()
 
 		req.SetRequestURI("http://sam.wake-app.net/time")
-
-		req.SetConnectionClose()
-		resp.SetConnectionClose()
+		req.Header.Add("Connection", "Keep-Alive")
 
 		err := client.DoTimeout(req, resp, 10*time.Second)
 		if err != nil {
@@ -159,12 +145,10 @@ func handleWorker(idCh, outCh chan string, errCh chan int, wg *sync.WaitGroup) {
 
 		fasthttp.ReleaseRequest(req)
 		fasthttp.ReleaseResponse(resp)
-
-		time.Sleep(500 * time.Millisecond)
 	}
 }
 
-func fillTime(outCh chan string, doneCh chan struct{}, wg *sync.WaitGroup) {
+func fillTime(ctx context.Context, outCh chan string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	const maxUpsertLen = 5000
@@ -207,7 +191,7 @@ func fillTime(outCh chan string, doneCh chan struct{}, wg *sync.WaitGroup) {
 			}
 
 			outCh = nil
-		case <-doneCh:
+		case <-ctx.Done():
 			if outCh != nil {
 				for tm = range outCh {
 					timeList = append(timeList, tm)
@@ -226,42 +210,6 @@ func fillTime(outCh chan string, doneCh chan struct{}, wg *sync.WaitGroup) {
 	}
 }
 
-func insertTime(ros []string) error {
-	var err error
-	var m *SQLManager
-	var c string
-
-	m, err = InitManager()
-	if err != nil {
-		return fmt.Errorf("on InsertToDb.InitManager: %s", err.Error())
-	}
-
-	var d = &sg.InsertData{
-		TableName: "Parsing",
-		Fields: []string{
-			"time",
-			"t",
-		},
-		IsIgnore: true,
-	}
-
-	var count int
-	for _, c = range ros {
-		d.Add([]string{
-			c,
-			strconv.Itoa(count),
-		})
-		count++
-	}
-
-	_, err = m.Insert(d)
-	if err != nil {
-		return fmt.Errorf("on InsertToDb: %s", err.Error())
-	}
-
-	return nil
-}
-
 func memPeakUsage() {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
@@ -273,84 +221,4 @@ func memPeakUsage() {
 
 func bToMb(b uint64) uint64 {
 	return b / 1024 / 1024
-}
-
-// InitManager - init manager based on env params
-func InitManager() (*SQLManager, error) {
-	var err error
-
-	if m == nil {
-		m = &SQLManager{}
-
-		err = m.open(&config{
-			Host:     "127.0.0.1",
-			Username: "deployer",
-			Pass:     "deployer",
-			Port:     "3306",
-			DBName:   "meetup_db",
-		})
-		if err != nil {
-			err = fmt.Errorf("on InitManager: %s", err.Error())
-		}
-	}
-
-	return m, err
-}
-
-// CloseManager - close connection to DB
-func CloseManager() {
-	_ = m.conn.Close()
-
-	m = nil
-}
-
-// Insert - do insert
-func (m *SQLManager) Insert(dataInsert *sg.InsertData) (int, error) {
-	if len(dataInsert.ValuesList) == 0 {
-		return 0, nil
-	}
-
-	sqlGenerator := sg.MysqlSqlGenerator{}
-
-	query, args, err := sqlGenerator.GetInsertSql(*dataInsert)
-	if err != nil {
-		return 0, fmt.Errorf("on insert.generate insert sql: %s", err.Error())
-	}
-
-	var stmt *sql.Stmt
-	stmt, err = m.conn.Prepare(query)
-	if err != nil {
-		return 0, fmt.Errorf("on insert.prepare stmt: %s", err.Error())
-	}
-	defer func() {
-		_ = stmt.Close()
-	}()
-
-	var result sql.Result
-	result, err = stmt.Exec(args...)
-	if err != nil {
-		return 0, fmt.Errorf("on insert.execute stmt: %s", err.Error())
-	}
-
-	ra, _ := result.RowsAffected()
-
-	return int(ra), nil
-}
-
-func (m *SQLManager) open(c *config) error {
-	var conn *sql.DB
-	var err error
-
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?collation=utf8_unicode_ci", c.Username, c.Pass, c.Host, c.Port, c.DBName)
-	if conn, err = sql.Open("mysql", dsn); err != nil {
-		return fmt.Errorf("on open connection to db: %s", err.Error())
-	}
-
-	m.conn = conn
-
-	return nil
-}
-
-func (m *SQLManager) Query(sql string, args ...interface{}) (*sql.Rows, error) {
-	return m.conn.Query(sql, args...)
 }

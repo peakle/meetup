@@ -7,3 +7,4 @@ server/meetup_server
 
 meetup_server
 meetup
+.DS_Store
