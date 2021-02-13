@@ -44,6 +44,7 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
+	wg.Add(1)
 	go fillTime(ctx, outCh, wg)
 
 	var maxWorker = reqCount

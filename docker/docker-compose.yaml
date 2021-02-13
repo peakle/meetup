@@ -27,35 +27,3 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-
-  php:
-    container_name: ${PROJECT_NAME}_php
-    build:
-      context: php
-    ports:
-      - 9000:9000
-    working_dir: /app
-    volumes:
-      - app_volume:/app
-
-  nginx:
-    container_name: ${PROJECT_NAME}_nginx
-    build: nginx
-    ports:
-      - 80:80
-    depends_on:
-      - php
-    volumes:
-      - app_volume:/app
-
-  tarantool:
-    container_name: ${PROJECT_NAME}_tarantool
-    image: registry.wake-app.net/wakeapp/tarantool-queue:latest
-    ports:
-      - 3301:3301
-    volumes:
-      - ./.data/queue:/var/lib/tarantool
-    environment:
-      TARANTOOL_USER_NAME: ${TARANTOOL_USER}
-      TARANTOOL_USER_PASSWORD: ${TARANTOOL_PASSWORD}
-      TARANTOOL_PORT: ${TARANTOOL_PORT}

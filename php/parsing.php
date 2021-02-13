@@ -8,15 +8,13 @@ use GuzzleHttp\RequestOptions;
 
 use function GuzzleHttp\Promise\settle;
 
-gc_disable();
-
 {
     $fh = STDIN;
     $requestCount = (int)fgets($fh);
 
     $start = microtime(true);
 
-    $pdo = new PDO('mysql:dbname=meetup_db;host=db', 'deployer', 'deployer');
+    $pdo = new PDO('mysql:dbname=meetup_db;host=127.0.0.1', 'deployer', 'deployer');
 }
 
 
@@ -33,11 +31,8 @@ $resultList = [];
 
     for (; $requestCount >= 0; $requestCount--) {
         $promisePool[] = $client->getAsync('http://sam.wake-app.net/time', [
-            RequestOptions::HEADERS => [
-                'Connection' => 'Close'
-            ],
-            RequestOptions::TIMEOUT => "10",
-        ]);
+	 	RequestOptions::TIMEOUT => "10",
+	]);
 
         if ($requestCount%400 === 0){
             /** @var Response[] $responseList */
@@ -62,7 +57,7 @@ $resultList = [];
                             $sql = 'INSERT INTO Parsing (time) VALUES ';
                     
                             foreach ($resultList as $r) {
-                                $sql .= sprintf("('%s'),", (new DateTime($r))->format('Y-m-d H:i:s'));
+                                $sql .= sprintf("('%s'),", (DateTime::createFromFormat('Y-d-m\TH:i:sP',$r))->format('Y-m-d H:i:s'));
                             }
                     
                             $sql = trim($sql, ',');
