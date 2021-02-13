@@ -31,10 +31,13 @@ $resultList = [];
 
     for (; $requestCount >= 0; $requestCount--) {
         $promisePool[] = $client->getAsync('http://sam.wake-app.net/time', [
-	 	RequestOptions::TIMEOUT => "10",
-	]);
+            RequestOptions::TIMEOUT => 30,
+            RequestOptions::HEADERS => [
+                'Connection' => 'Keep-Alive',
+            ]
+        ]);
 
-        if ($requestCount%400 === 0){
+        if ($requestCount % 300 === 0) {
             /** @var Response[] $responseList */
             $responseList = settle($promisePool)->wait();
 
@@ -42,8 +45,6 @@ $resultList = [];
 
             foreach ($responseList as $response) {
                 if (isset($response['value'])) {
-                    // usleep(500000);
-
                     /** @var Response $resp */
                     $resp = $response['value'];
 
@@ -55,13 +56,15 @@ $resultList = [];
                     if ($resultCount >= 5000) {
                         if (array_filter($resultList)) {
                             $sql = 'INSERT INTO Parsing (time) VALUES ';
-                    
+
                             foreach ($resultList as $r) {
-                                $sql .= sprintf("('%s'),", (DateTime::createFromFormat('Y-d-m\TH:i:sP',$r))->format('Y-m-d H:i:s'));
+                                $sql .= sprintf("('%s'),",
+                                    (DateTime::createFromFormat('Y-d-m\TH:iP', $r))->format('Y-m-d H:i:s')
+                                );
                             }
-                    
+
                             $sql = trim($sql, ',');
-                    
+
                             $ok = $pdo->exec($sql);
                             if ($ok === false) {
                                 echo 'error occurred';
@@ -95,7 +98,10 @@ $resultList = [];
         $sql = 'INSERT INTO Parsing (time) VALUES ';
 
         foreach ($resultList as $r) {
-            $sql .= sprintf("('%s'),", (new DateTime($r))->format('Y-m-d H:i:s'));
+            $sql .= sprintf(
+                "('%s'),",
+                (DateTime::createFromFormat('Y-d-m\TH:iP', $r))->format('Y-m-d H:i:s')
+            );
         }
 
         $sql = trim($sql, ',');
@@ -114,5 +120,5 @@ $resultList = [];
 $end = microtime(true);
 
 echo sprintf("execution time = %s \n", ($end - $start));
-echo sprintf("Sys memory = %s \n", (memory_get_usage(true)));
+echo sprintf("Sys memory = %s \n", (memory_get_usage(true) / 1024 / 1024));
 echo sprintf("error count = %s \n", $errorCount);
