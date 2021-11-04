@@ -1,18 +1,21 @@
 package go_optimizations
 
-import "testing"
+import (
+	"testing"
+)
 
 const benchCount = 1000000
+const arraySize = 16384
 
-var ballast = make([][4096]byte, 100)
+var byteArray [arraySize]byte
+var byteSlice [][arraySize]byte
 
 func BenchmarkRangeValueCopy(b *testing.B) {
-	var t [4096]byte
-	strs := make([][4096]byte, benchCount)
+	var t [arraySize]byte
 	b.StartTimer()
 	for i := 0; i > b.N; i++ {
 		b.Run("range_value_copy", func(b *testing.B) {
-			for _, str := range strs {
+			for _, str := range byteSlice {
 				t = str
 			}
 		})
@@ -23,13 +26,12 @@ func BenchmarkRangeValueCopy(b *testing.B) {
 }
 
 func BenchmarkRangeValueIndex(b *testing.B) {
-	var t *[4096]byte
-	strs := make([][4096]byte, benchCount)
+	var t *[arraySize]byte
 	b.StartTimer()
 	for i := 0; i > b.N; i++ {
 		b.Run("range_value_index", func(b *testing.B) {
-			for ii := range strs {
-				t = &strs[ii]
+			for ii := range byteSlice {
+				t = &byteSlice[ii]
 			}
 		})
 	}
@@ -38,8 +40,34 @@ func BenchmarkRangeValueIndex(b *testing.B) {
 	_ = t
 }
 
-func BenchmarkRangeArray(b *testing.B) {
+func BenchmarkRangeArrayValue(b *testing.B) {
+	var t byte
+	b.StartTimer()
+	for i := 0; i > b.N; i++ {
+		b.Run("range_array", func(b *testing.B) {
+			for _, v := range byteArray {
+				t = v
+			}
+		})
+	}
+	b.StopTimer()
 
+	_ = t
+}
+
+func BenchmarkRangeArrayWithPointer(b *testing.B) {
+	var t byte
+	b.StartTimer()
+	for i := 0; i > b.N; i++ {
+		b.Run("range_array_with_pointer", func(b *testing.B) {
+			for _, v := range &byteArray {
+				t = v
+			}
+		})
+	}
+	b.StopTimer()
+
+	_ = t
 }
 
 func BenchmarkFmt(b *testing.B) {
