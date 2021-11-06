@@ -110,6 +110,7 @@ func BenchmarkMakeCorrectUsage(b *testing.B) {
 type hugeStruct struct {
 	h     int
 	cache [hugeArraySize]byte
+	body  []byte
 }
 
 func BenchmarkHugeParamByCopy(b *testing.B) {
@@ -157,6 +158,7 @@ func BenchmarkHugeParamByPointer(b *testing.B) {
 func dummyPointer(h *hugeStruct) *hugeStruct {
 	for i := 0; i < 10; i++ {
 		h.h = i
+		h.body = append(h.body, 'f')
 	}
 
 	return h
@@ -165,13 +167,13 @@ func dummyPointer(h *hugeStruct) *hugeStruct {
 func BenchmarkNewObject(b *testing.B) {
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		b.Run("benchmark_new_object", func(b *testing.B) {
+		b.Run("new_object", func(b *testing.B) {
 			var wg sync.WaitGroup
 			wg.Add(benchCount)
 
 			for ii := 0; ii < benchCount; ii++ {
 				go func() {
-					h := &hugeStruct{h: 0, cache: [2048]byte{}}
+					h := &hugeStruct{body: make([]byte, 0, mediumArraySize)}
 					h = dummyPointer(h)
 					wg.Done()
 				}()
@@ -189,18 +191,19 @@ func BenchmarkNewObjectWithSyncPool(b *testing.B) {
 	get := func() *hugeStruct {
 		h := hugeStructPool.Get()
 		if h == nil {
-			return &hugeStruct{}
+			return &hugeStruct{body: make([]byte, 0, mediumArraySize)}
 		}
 		return h.(*hugeStruct)
 	}
 	put := func(h *hugeStruct) {
 		h.h = 0
+		h.body = h.body[:0]
 		hugeStructPool.Put(h)
 	}
 
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		b.Run("benchmark_new_object", func(b *testing.B) {
+		b.Run("new_object_with_sync_pool", func(b *testing.B) {
 			var wg sync.WaitGroup
 			wg.Add(benchCount)
 
