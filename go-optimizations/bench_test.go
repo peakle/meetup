@@ -1,6 +1,7 @@
 package go_optimizations
 
 import (
+	customFmt "go-optimizations/fmt"
 	"sync"
 	"testing"
 )
@@ -20,91 +21,80 @@ var byteArray [hugeArraySize]byte
 var byteSlice [][hugeArraySize]byte
 
 func BenchmarkRangeValueCopy(b *testing.B) {
+	b.StopTimer()
 	var t [hugeArraySize]byte
 	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		b.Run("range_value_copy", func(b *testing.B) {
-			for _, str := range byteSlice {
-				t = str
-			}
-		})
-	}
-	b.StopTimer()
 
+	b.Run("range_value_copy", func(b *testing.B) {
+		for _, str := range byteSlice {
+			t = str
+		}
+	})
 	_ = t
 }
 
 func BenchmarkRangeValueIndex(b *testing.B) {
+	b.StopTimer()
 	var t *[hugeArraySize]byte
 	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		b.Run("range_value_index", func(b *testing.B) {
-			for ii := range byteSlice {
-				t = &byteSlice[ii]
-			}
-		})
-	}
-	b.StopTimer()
 
+	b.Run("range_value_index", func(b *testing.B) {
+		for ii := range byteSlice {
+			t = &byteSlice[ii]
+		}
+	})
 	_ = t
 }
 
 func BenchmarkRangeArrayValue(b *testing.B) {
+	b.StopTimer()
 	var t byte
 	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		b.Run("range_array", func(b *testing.B) {
-			for _, v := range byteArray {
-				t = v
-			}
-		})
-	}
-	b.StopTimer()
 
+	b.Run("range_array", func(b *testing.B) {
+		for _, v := range byteArray {
+			t = v
+		}
+	})
 	_ = t
 }
 
 func BenchmarkRangeArrayWithPointer(b *testing.B) {
+	b.StopTimer()
 	var t byte
 	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		b.Run("range_array_with_pointer", func(b *testing.B) {
-			for _, v := range &byteArray {
-				t = v
-			}
-		})
-	}
-	b.StopTimer()
 
+	b.Run("range_array_with_pointer", func(b *testing.B) {
+		for _, v := range &byteArray {
+			t = v
+		}
+	})
 	_ = t
 }
 
 func BenchmarkMakeIncorrectUsage(b *testing.B) {
-	var t = make([][extraSmallArraySize]byte, 10)
-
-	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		b.Run("benchmark_make_incorrect_usage", func(b *testing.B) {
-			for ii := 0; ii < benchCount; ii++ {
-				t = append(t, [extraSmallArraySize]byte{})
-			}
-		})
-	}
 	b.StopTimer()
+	var t = make([][extraSmallArraySize]byte, 10)
+	b.StartTimer()
+
+	b.Run("benchmark_make_incorrect_usage", func(b *testing.B) {
+		for ii := 0; ii < benchCount; ii++ {
+			t = append(t, [extraSmallArraySize]byte{})
+		}
+	})
 }
 
 func BenchmarkMakeCorrectUsage(b *testing.B) {
+	b.StopTimer()
 	var t = make([][extraSmallArraySize]byte, 0, benchCount)
 
 	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		b.Run("benchmark_make_correct_usage", func(b *testing.B) {
-			for ii := 0; ii < benchCount; ii++ {
-				t = append(t, [extraSmallArraySize]byte{})
-			}
-		})
-	}
-	b.StopTimer()
+
+	b.Run("benchmark_make_correct_usage", func(b *testing.B) {
+		for ii := 0; ii < benchCount; ii++ {
+			t = append(t, [extraSmallArraySize]byte{})
+		}
+	})
 }
 
 type hugeStruct struct {
@@ -114,20 +104,19 @@ type hugeStruct struct {
 }
 
 func BenchmarkHugeParamByCopy(b *testing.B) {
+	b.StopTimer()
 	t := hugeStruct{
 		h:     0,
 		cache: [2048]byte{},
 	}
 
 	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		b.Run("benchmark_huge_param_by_copy", func(b *testing.B) {
-			for ii := 0; ii < benchCount; ii++ {
-				t = dummyCopy(t)
-			}
-		})
-	}
-	b.StopTimer()
+
+	b.Run("benchmark_huge_param_by_copy", func(b *testing.B) {
+		for ii := 0; ii < benchCount; ii++ {
+			t = dummyCopy(t)
+		}
+	})
 }
 
 func dummyCopy(h hugeStruct) hugeStruct {
@@ -139,20 +128,18 @@ func dummyCopy(h hugeStruct) hugeStruct {
 }
 
 func BenchmarkHugeParamByPointer(b *testing.B) {
+	b.StopTimer()
 	t := &hugeStruct{
 		h:     0,
 		cache: [2048]byte{},
 	}
 
 	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		b.Run("benchmark_huge_param_by_pointer", func(b *testing.B) {
-			for ii := 0; ii < benchCount; ii++ {
-				t = dummyPointer(t)
-			}
-		})
-	}
-	b.StopTimer()
+	b.Run("benchmark_huge_param_by_pointer", func(b *testing.B) {
+		for ii := 0; ii < benchCount; ii++ {
+			t = dummyPointer(t)
+		}
+	})
 }
 
 func dummyPointer(h *hugeStruct) *hugeStruct {
@@ -165,29 +152,30 @@ func dummyPointer(h *hugeStruct) *hugeStruct {
 }
 
 func BenchmarkNewObject(b *testing.B) {
-	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		b.Run("new_object", func(b *testing.B) {
-			var wg sync.WaitGroup
-			wg.Add(benchCount)
-
-			for ii := 0; ii < benchCount; ii++ {
-				go func() {
-					h := &hugeStruct{body: make([]byte, 0, mediumArraySize)}
-					h = dummyPointer(h)
-					wg.Done()
-				}()
-			}
-
-			wg.Wait()
-		})
-	}
 	b.StopTimer()
+	b.StartTimer()
+
+	b.Run("new_object", func(b *testing.B) {
+		var wg sync.WaitGroup
+		wg.Add(benchCount)
+
+		for ii := 0; ii < benchCount; ii++ {
+			go func() {
+				h := &hugeStruct{body: make([]byte, 0, mediumArraySize)}
+				h = dummyPointer(h)
+				wg.Done()
+			}()
+		}
+
+		wg.Wait()
+	})
+
 }
 
 var hugeStructPool sync.Pool
 
 func BenchmarkNewObjectWithSyncPool(b *testing.B) {
+	b.StopTimer()
 	get := func() *hugeStruct {
 		h := hugeStructPool.Get()
 		if h == nil {
@@ -202,25 +190,24 @@ func BenchmarkNewObjectWithSyncPool(b *testing.B) {
 	}
 
 	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		b.Run("new_object_with_sync_pool", func(b *testing.B) {
-			var wg sync.WaitGroup
-			wg.Add(benchCount)
 
-			for ii := 0; ii < benchCount; ii++ {
-				go func() {
-					h := get()
-					h = dummyPointer(h)
-					wg.Done()
+	b.Run("new_object_with_sync_pool", func(b *testing.B) {
+		var wg sync.WaitGroup
+		wg.Add(benchCount)
 
-					put(h)
-				}()
-			}
+		for ii := 0; ii < benchCount; ii++ {
+			go func() {
+				h := get()
+				h = dummyPointer(h)
+				wg.Done()
 
-			wg.Wait()
-		})
-	}
-	b.StopTimer()
+				put(h)
+			}()
+		}
+
+		wg.Wait()
+	})
+
 }
 
 func BenchmarkSlice(b *testing.B) {
@@ -238,6 +225,40 @@ func BenchmarkGC(b *testing.B)                  {}
 func BenchmarkGCWithBallast(b *testing.B)       {}
 func BenchmarkStrings(b *testing.B)             {}
 func BenchmarkBytes(b *testing.B)               {}
-func BenchmarkFmt(b *testing.B)                 {}
-func BenchmarkConcatenation(b *testing.B)       {}
-func BenchmarkStructSizes(b *testing.B)         {}
+
+func BenchmarkInterfaceUsage(b *testing.B) {
+	b.StopTimer()
+	h := &hugeStruct{
+		h:     0,
+		cache: [2048]byte{},
+		body:  make([]byte, hugeArraySize),
+	}
+	b.StartTimer()
+
+	var foo string
+	// TODO why slower than fmt.Sprint
+	b.Run("fmt_sprint_string", func(b *testing.B) {
+		for i := 0; i < benchCount; i++ {
+			foo = customFmt.SprintString("foo", "bar")
+		}
+	})
+
+	b.Run("fmt_sprint", func(b *testing.B) {
+		for i := 0; i < benchCount; i++ {
+			foo = customFmt.Sprint("foo", "bar")
+		}
+	})
+
+	b.Run("concatenation", func(b *testing.B) {
+		for i := 0; i < benchCount; i++ {
+			foo = "foo" + "bar"
+		}
+	})
+
+	foo = "bar"
+	_ = foo
+
+	dummyPointer(h)
+}
+
+func BenchmarkStructSizes(b *testing.B) {}
