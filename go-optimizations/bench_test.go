@@ -2,6 +2,7 @@ package go_optimizations
 
 import (
 	"context"
+	"fmt"
 	customFmt "go-optimizations/fmt"
 	"runtime"
 	"sync"
@@ -18,7 +19,7 @@ const (
 
 const (
 	extraSmallArraySize = 64 << (1 * iota)
-	smallArraySize
+	_
 	_
 	_
 	mediumArraySize
@@ -187,23 +188,23 @@ func BenchmarkNewObject(b *testing.B) {
 
 var hugeStructPool sync.Pool
 
+func get() *hugeStruct {
+	h := hugeStructPool.Get()
+	if h == nil {
+		return &hugeStruct{body: make([]byte, 0, mediumArraySize)}
+	}
+	return h.(*hugeStruct)
+}
+
+func put(h *hugeStruct) {
+	h.h = 0
+	h.body = h.body[:0]
+	hugeStructPool.Put(h)
+}
+
 func BenchmarkNewObjectWithSyncPool(b *testing.B) {
 	b.StopTimer()
-	get := func() *hugeStruct {
-		h := hugeStructPool.Get()
-		if h == nil {
-			return &hugeStruct{body: make([]byte, 0, mediumArraySize)}
-		}
-		return h.(*hugeStruct)
-	}
-	put := func(h *hugeStruct) {
-		h.h = 0
-		h.body = h.body[:0]
-		hugeStructPool.Put(h)
-	}
-
 	b.StartTimer()
-
 	b.Run("new_object_with_sync_pool", func(b *testing.B) {
 		var wg sync.WaitGroup
 		wg.Add(benchCount)
@@ -249,7 +250,8 @@ func BenchmarkGoroutinesRaw(b *testing.B) {
 	wg.Wait()
 	b.StopTimer()
 
-	b.Logf("memory usage:%d MB", checkMem())
+	stats := checkMem()
+	b.Logf("memory usage:%d MB", stats.TotalAlloc/MiB)
 }
 
 func BenchmarkGoroutinesSemaphore(b *testing.B) {
@@ -275,7 +277,8 @@ func BenchmarkGoroutinesSemaphore(b *testing.B) {
 	wg.Wait()
 	b.StopTimer()
 
-	b.Logf("memory usage:%d MB", checkMem())
+	stats := checkMem()
+	b.Logf("memory usage:%d MB", stats.TotalAlloc/MiB)
 }
 
 func BenchmarkReusableGoroutines(b *testing.B) {
@@ -304,13 +307,71 @@ func BenchmarkReusableGoroutines(b *testing.B) {
 	wg.Wait()
 	b.StopTimer()
 
-	b.Logf("memory usage:%d MB", checkMem())
+	stats := checkMem()
+	b.Logf("memory usage:%d MB", stats.TotalAlloc/MiB)
 }
 
-func BenchmarkGC(b *testing.B)            {}
-func BenchmarkGCWithBallast(b *testing.B) {}
-func BenchmarkStrings(b *testing.B)       {}
-func BenchmarkBytes(b *testing.B)         {}
+func BenchmarkGC(b *testing.B) {
+	b.StartTimer()
+	go func() {
+		for i := 0; i < 100; i++ {
+			dummyApplication(benchCount / 2)
+			time.Sleep(time.Second)
+		}
+	}()
+	for i := 0; i < 10; i++ {
+		dummyApplication(benchCount)
+		time.Sleep(10 * time.Second)
+	}
+	b.StopTimer()
+
+	stats := checkMem()
+	b.Logf("memory usage: %d MB", stats.TotalAlloc/MiB)
+	b.Logf("GC cycles: %d", stats.NumGC)
+}
+//bench_test.go:329: memory usage: 20674 MB
+//bench_test.go:330: GC cycles: 4224
+
+func BenchmarkGCWithBallast(b *testing.B) {
+	b.StopTimer()
+	ballast := make([]byte, 10<<30)
+	b.StartTimer()
+	go func() {
+		for i := 0; i < 100; i++ {
+			dummyApplication(benchCount / 2)
+			time.Sleep(time.Second)
+		}
+	}()
+	for i := 0; i < 10; i++ {
+		dummyApplication(benchCount)
+		time.Sleep(10 * time.Second)
+	}
+	b.StopTimer()
+
+	_ = ballast
+	stats := checkMem()
+	b.Logf("memory usage: %d MB", stats.TotalAlloc/MiB)
+	b.Logf("GC cycles: %d", stats.NumGC)
+}
+//bench_test.go:353: memory usage: 30913 MB
+//bench_test.go:354: GC cycles: 5223
+
+func dummyApplication(count int) {
+	var wg sync.WaitGroup
+	wg.Add(benchCount)
+
+	for ii := 0; ii < count; ii++ {
+		go func() {
+			h := &hugeStruct{body: make([]byte, 0, hugeArraySize)}
+			h = dummyPointer(h)
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+}
+
+func BenchmarkStrings(b *testing.B) {}
+func BenchmarkBytes(b *testing.B)   {}
 
 func BenchmarkInterfaceUsage(b *testing.B) {
 	b.StopTimer()
@@ -324,16 +385,22 @@ func BenchmarkInterfaceUsage(b *testing.B) {
 	)
 	b.StartTimer()
 
-	// TODO why slower than fmt.Sprint
-	b.Run("fmt_sprint_string", func(b *testing.B) {
+	b.Run("fmt_sprintf", func(b *testing.B) {
 		for i := 0; i < benchCount; i++ {
-			foo = customFmt.SprintString("foo", "bar")
+			foo = fmt.Sprintf("foo bar")
 		}
 	})
 
 	b.Run("fmt_sprint", func(b *testing.B) {
 		for i := 0; i < benchCount; i++ {
-			foo = customFmt.Sprint("foo", "bar")
+			foo = fmt.Sprint("foo bar")
+		}
+	})
+
+	// TODO why slower than fmt.Sprint
+	b.Run("fmt_sprint_string", func(b *testing.B) {
+		for i := 0; i < benchCount; i++ {
+			foo = customFmt.SprintString("foo", "bar")
 		}
 	})
 
@@ -351,10 +418,8 @@ func BenchmarkInterfaceUsage(b *testing.B) {
 
 func BenchmarkStructSizes(b *testing.B) {}
 
-func checkMem() uint64 {
-	var curMem uint64
-	mem := runtime.MemStats{}
-	runtime.ReadMemStats(&mem)
-	curMem = mem.TotalAlloc/MiB - curMem
-	return curMem
+func checkMem() *runtime.MemStats {
+	mem := &runtime.MemStats{}
+	runtime.ReadMemStats(mem)
+	return mem
 }
