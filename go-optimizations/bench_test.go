@@ -38,15 +38,15 @@ type hugeStruct struct {
 	body  []byte
 }
 
-var byteArray [hugeArraySize]byte
+var hugeArray = [hugeArraySize]hugeStruct{}
 var hugeSlice = make([]hugeStruct, benchCount)
 
 func BenchmarkRangeValueCopy(b *testing.B) {
 	var sum uint64 = 0
 
 	b.Run("range_value_copy", func(b *testing.B) {
-		for _, str := range hugeSlice {
-			sum += str.h
+		for _, hs := range hugeSlice {
+			sum += hs.h
 		}
 	})
 
@@ -56,7 +56,7 @@ func BenchmarkRangeValueCopy(b *testing.B) {
 		}
 	})
 
-	b.Run("range_value_index_with_pointer", func(b *testing.B) {
+	b.Run("range_value_pointer_and_index", func(b *testing.B) {
 		for ii := range hugeSlice {
 			sum = (&hugeSlice[ii]).h
 		}
@@ -67,28 +67,30 @@ func BenchmarkRangeValueCopy(b *testing.B) {
 
 func BenchmarkRangeArrayValue(b *testing.B) {
 	b.StopTimer()
-	var t byte
+	var sum uint64 = 0
 	b.StartTimer()
 
 	b.Run("range_array", func(b *testing.B) {
-		for _, v := range byteArray {
-			t = v
+		for _, v := range hugeArray {
+			sum += v.h
 		}
 	})
-	_ = t
+
+	_ = sum
 }
 
 func BenchmarkRangeArrayWithPointer(b *testing.B) {
 	b.StopTimer()
-	var t byte
+	var sum uint64 = 0
 	b.StartTimer()
 
 	b.Run("range_array_with_pointer", func(b *testing.B) {
-		for _, v := range &byteArray {
-			t = v
+		for _, v := range &hugeArray {
+			sum += v.h
 		}
 	})
-	_ = t
+
+	_ = sum
 }
 
 func BenchmarkMakeIncorrectUsage(b *testing.B) {
