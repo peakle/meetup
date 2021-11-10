@@ -32,33 +32,51 @@ const (
 	MiB
 )
 
+type hugeStruct struct {
+	h     uint64
+	cache [hugeArraySize]byte
+	body  []byte
+}
+
 var byteArray [hugeArraySize]byte
-var byteSlice [][hugeArraySize]byte
+var hugeSlice = make([]hugeStruct, benchCount)
 
 func BenchmarkRangeValueCopy(b *testing.B) {
 	b.StopTimer()
-	var t [hugeArraySize]byte
+	var sum uint64 = 0
 	b.StartTimer()
-
 	b.Run("range_value_copy", func(b *testing.B) {
-		for _, str := range byteSlice {
-			t = str
+		for _, str := range hugeSlice {
+			sum += str.h
 		}
 	})
-	_ = t
+	_ = sum
 }
 
 func BenchmarkRangeValueIndex(b *testing.B) {
 	b.StopTimer()
-	var t *[hugeArraySize]byte
+	var sum uint64 = 0
 	b.StartTimer()
 
 	b.Run("range_value_index", func(b *testing.B) {
-		for ii := range byteSlice {
-			t = &byteSlice[ii]
+		for ii := range hugeSlice {
+			sum += hugeSlice[ii].h
 		}
 	})
-	_ = t
+	_ = sum
+}
+
+func BenchmarkRangeValueIndexWithPointer(b *testing.B) {
+	b.StopTimer()
+	var sum uint64
+	b.StartTimer()
+
+	b.Run("range_value_index_with_pointer", func(b *testing.B) {
+		for ii := range hugeSlice {
+			sum = (&hugeSlice[ii]).h
+		}
+	})
+	_ = sum
 }
 
 func BenchmarkRangeArrayValue(b *testing.B) {
@@ -110,12 +128,6 @@ func BenchmarkMakeCorrectUsage(b *testing.B) {
 			t = append(t, [extraSmallArraySize]byte{})
 		}
 	})
-}
-
-type hugeStruct struct {
-	h     uint64
-	cache [hugeArraySize]byte
-	body  []byte
 }
 
 func BenchmarkHugeParamByCopy(b *testing.B) {
@@ -329,6 +341,7 @@ func BenchmarkGC(b *testing.B) {
 	b.Logf("memory usage: %d MB", stats.TotalAlloc/MiB)
 	b.Logf("GC cycles: %d", stats.NumGC)
 }
+
 //bench_test.go:329: memory usage: 20674 MB
 //bench_test.go:330: GC cycles: 4224
 
@@ -353,6 +366,7 @@ func BenchmarkGCWithBallast(b *testing.B) {
 	b.Logf("memory usage: %d MB", stats.TotalAlloc/MiB)
 	b.Logf("GC cycles: %d", stats.NumGC)
 }
+
 //bench_test.go:353: memory usage: 30913 MB
 //bench_test.go:354: GC cycles: 5223
 
