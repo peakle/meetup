@@ -42,40 +42,26 @@ var byteArray [hugeArraySize]byte
 var hugeSlice = make([]hugeStruct, benchCount)
 
 func BenchmarkRangeValueCopy(b *testing.B) {
-	b.StopTimer()
 	var sum uint64 = 0
-	b.StartTimer()
+
 	b.Run("range_value_copy", func(b *testing.B) {
 		for _, str := range hugeSlice {
 			sum += str.h
 		}
 	})
-	_ = sum
-}
-
-func BenchmarkRangeValueIndex(b *testing.B) {
-	b.StopTimer()
-	var sum uint64 = 0
-	b.StartTimer()
 
 	b.Run("range_value_index", func(b *testing.B) {
 		for ii := range hugeSlice {
 			sum += hugeSlice[ii].h
 		}
 	})
-	_ = sum
-}
-
-func BenchmarkRangeValueIndexWithPointer(b *testing.B) {
-	b.StopTimer()
-	var sum uint64
-	b.StartTimer()
 
 	b.Run("range_value_index_with_pointer", func(b *testing.B) {
 		for ii := range hugeSlice {
 			sum = (&hugeSlice[ii]).h
 		}
 	})
+
 	_ = sum
 }
 
