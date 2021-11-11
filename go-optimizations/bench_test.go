@@ -39,10 +39,10 @@ type hugeStruct struct {
 }
 
 var hugeArray = [hugeArraySize]hugeStruct{}
-var hugeSlice = make([]hugeStruct, benchCount)
 
 func BenchmarkRangeValueCopy(b *testing.B) {
 	var sum uint64 = 0
+	var hugeSlice = make([]hugeStruct, benchCount)
 
 	b.Run("range_value_copy", func(b *testing.B) {
 		for _, hs := range hugeSlice {
@@ -218,26 +218,24 @@ func BenchmarkNewObjectWithSyncPool(b *testing.B) {
 	})
 }
 
-func dummyProcess(h *hugeStruct) uint64 {
+func dummyProcess() uint64 {
+	var sum uint64
 	for i := 0; i < 1000; i++ {
-		h.h = uint64(i)
+		sum += uint64(i)
 	}
 	time.Sleep(time.Microsecond)
-	return h.h
+	return sum
 }
 
 func BenchmarkGoroutinesRaw(b *testing.B) {
 	b.StopTimer()
-	var (
-		wg sync.WaitGroup
-		h  = &hugeStruct{}
-	)
+	var wg sync.WaitGroup
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		wg.Add(benchCount)
 		for j := 0; j < benchCount; j++ {
 			go func() {
-				dummyProcess(h)
+				dummyProcess()
 				wg.Done()
 			}()
 		}
@@ -251,10 +249,7 @@ func BenchmarkGoroutinesRaw(b *testing.B) {
 
 func BenchmarkGoroutinesSemaphore(b *testing.B) {
 	b.StopTimer()
-	var (
-		wg sync.WaitGroup
-		h  = &hugeStruct{}
-	)
+	var wg sync.WaitGroup
 	sema := make(chan struct{}, poolSize)
 
 	b.StartTimer()
@@ -263,7 +258,7 @@ func BenchmarkGoroutinesSemaphore(b *testing.B) {
 		for j := 0; j < benchCount; j++ {
 			sema <- struct{}{}
 			go func() {
-				dummyProcess(h)
+				dummyProcess()
 				<-sema
 				wg.Done()
 			}()
@@ -278,25 +273,21 @@ func BenchmarkGoroutinesSemaphore(b *testing.B) {
 
 func BenchmarkReusableGoroutines(b *testing.B) {
 	b.StopTimer()
-	var (
-		wg sync.WaitGroup
-		h  = &hugeStruct{}
-	)
+	var wg sync.WaitGroup
 
 	p := pool.Create(context.Background(), func(ctx context.Context, task interface{}) {
-		dummyProcess(h)
+		dummyProcess()
 		wg.Done()
 	}, pool.WithCapacity(poolSize), pool.WithKeepAlive(5*time.Second))
 	defer func() {
 		p.Close()
 	}()
-	var task interface{}
 
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		wg.Add(benchCount)
 		for j := 0; j < benchCount; j++ {
-			p.Submit(task)
+			p.Submit(nil)
 		}
 	}
 	wg.Wait()
