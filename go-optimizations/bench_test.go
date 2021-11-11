@@ -94,11 +94,9 @@ func BenchmarkRangeArrayWithPointer(b *testing.B) {
 }
 
 func BenchmarkMakeIncorrectUsage(b *testing.B) {
-	b.StopTimer()
-	var t = make([][extraSmallArraySize]byte, 10)
-	b.StartTimer()
-
 	b.Run("benchmark_make_incorrect_usage", func(b *testing.B) {
+		var t = make([][extraSmallArraySize]byte, 0, 10)
+
 		for ii := 0; ii < benchCount; ii++ {
 			t = append(t, [extraSmallArraySize]byte{})
 		}
@@ -106,12 +104,9 @@ func BenchmarkMakeIncorrectUsage(b *testing.B) {
 }
 
 func BenchmarkMakeCorrectUsage(b *testing.B) {
-	b.StopTimer()
-	var t = make([][extraSmallArraySize]byte, 0, benchCount)
-
-	b.StartTimer()
-
 	b.Run("benchmark_make_correct_usage", func(b *testing.B) {
+		var t = make([][extraSmallArraySize]byte, 0, benchCount)
+
 		for ii := 0; ii < benchCount; ii++ {
 			t = append(t, [extraSmallArraySize]byte{})
 		}
