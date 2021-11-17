@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unsafe"
 
 	pool "github.com/delivery-club/bees"
 )
@@ -179,6 +180,10 @@ func BenchmarkNewObject(b *testing.B) {
 
 		wg.Wait()
 	})
+
+	stats := checkMem()
+	b.Logf("memory usage:%d MB", stats.TotalAlloc/MiB)
+	b.Logf("GC cycles: %d", stats.NumGC)
 }
 
 var hugeStructPool sync.Pool
@@ -216,6 +221,10 @@ func BenchmarkNewObjectWithSyncPool(b *testing.B) {
 
 		wg.Wait()
 	})
+
+	stats := checkMem()
+	b.Logf("memory usage:%d MB", stats.TotalAlloc/MiB)
+	b.Logf("GC cycles: %d", stats.NumGC)
 }
 
 func dummyProcess() uint64 {
@@ -245,6 +254,7 @@ func BenchmarkGoroutinesRaw(b *testing.B) {
 
 	stats := checkMem()
 	b.Logf("memory usage:%d MB", stats.TotalAlloc/MiB)
+	b.Logf("GC cycles: %d", stats.NumGC)
 }
 
 func BenchmarkGoroutinesSemaphore(b *testing.B) {
@@ -269,6 +279,7 @@ func BenchmarkGoroutinesSemaphore(b *testing.B) {
 
 	stats := checkMem()
 	b.Logf("memory usage:%d MB", stats.TotalAlloc/MiB)
+	b.Logf("GC cycles: %d", stats.NumGC)
 }
 
 func BenchmarkReusableGoroutines(b *testing.B) {
@@ -295,20 +306,27 @@ func BenchmarkReusableGoroutines(b *testing.B) {
 
 	stats := checkMem()
 	b.Logf("memory usage:%d MB", stats.TotalAlloc/MiB)
+	b.Logf("GC cycles: %d", stats.NumGC)
 }
 
 func BenchmarkGC(b *testing.B) {
+	b.StopTimer()
+	var wg sync.WaitGroup
+	wg.Add(1)
 	b.StartTimer()
+
 	go func() {
+		defer wg.Done()
 		for i := 0; i < 100; i++ {
 			dummyApplication(benchCount / 2)
-			time.Sleep(time.Second)
+			time.Sleep(time.Nanosecond)
 		}
 	}()
 	for i := 0; i < 10; i++ {
 		dummyApplication(benchCount)
-		time.Sleep(10 * time.Second)
+		time.Sleep(time.Nanosecond)
 	}
+	wg.Wait()
 	b.StopTimer()
 
 	stats := checkMem()
@@ -316,41 +334,53 @@ func BenchmarkGC(b *testing.B) {
 	b.Logf("GC cycles: %d", stats.NumGC)
 }
 
-//bench_test.go:329: memory usage: 20674 MB
-//bench_test.go:330: GC cycles: 4224
+//bench_test.go:329: memory usage: 59522 MB
+//bench_test.go:330: GC cycles: 17838
 
 func BenchmarkGCWithBallast(b *testing.B) {
 	b.StopTimer()
-	ballast := make([]byte, 10<<30)
+	var (
+		ballast = make([]byte, 10<<30)
+		wg      sync.WaitGroup
+	)
+	wg.Add(1)
 	b.StartTimer()
+
 	go func() {
+		defer wg.Done()
 		for i := 0; i < 100; i++ {
 			dummyApplication(benchCount / 2)
-			time.Sleep(time.Second)
+			time.Sleep(time.Nanosecond)
 		}
 	}()
 	for i := 0; i < 10; i++ {
 		dummyApplication(benchCount)
-		time.Sleep(10 * time.Second)
+		time.Sleep(time.Nanosecond)
 	}
+	wg.Wait()
 	b.StopTimer()
 
+	func(_ []byte) {
+		for {
+			break
+		}
+	}(ballast)
 	_ = ballast
 	stats := checkMem()
 	b.Logf("memory usage: %d MB", stats.TotalAlloc/MiB)
 	b.Logf("GC cycles: %d", stats.NumGC)
 }
 
-//bench_test.go:353: memory usage: 30913 MB
-//bench_test.go:354: GC cycles: 5223
+//bench_test.go:353: memory usage: 69813 MB
+//bench_test.go:354: GC cycles: 17017
 
 func dummyApplication(count int) {
 	var wg sync.WaitGroup
-	wg.Add(benchCount)
+	wg.Add(count)
 
 	for ii := 0; ii < count; ii++ {
 		go func() {
-			h := &hugeStruct{body: make([]byte, 0, hugeArraySize)}
+			h := &hugeStruct{body: make([]byte, 0, mediumArraySize)}
 			h = dummyPointer(h)
 			wg.Done()
 		}()
@@ -404,7 +434,22 @@ func BenchmarkInterfaceUsage(b *testing.B) {
 	dummyPointer(h)
 }
 
-func BenchmarkStructSizes(b *testing.B) {}
+func BenchmarkStructSizes(b *testing.B) {
+	type struct1 struct {
+		counter       int8
+		secondCounter int8
+		k             chan string
+	}
+
+	type struct2 struct {
+		counter       int8
+		k             chan string
+		secondCounter int8
+	}
+
+	b.Logf("%d", unsafe.Sizeof(struct1{}))
+	b.Logf("%d", unsafe.Sizeof(struct2{}))
+}
 
 func checkMem() *runtime.MemStats {
 	mem := &runtime.MemStats{}
