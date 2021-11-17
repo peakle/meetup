@@ -59,7 +59,14 @@ func BenchmarkRangeValueCopy(b *testing.B) {
 
 	b.Run("range_value_pointer_and_index", func(b *testing.B) {
 		for ii := range hugeSlice {
-			sum = (&hugeSlice[ii]).h
+			sum += (&hugeSlice[ii]).h
+		}
+	})
+
+	b.Run("range_value_pointer_and_index_split", func(b *testing.B) {
+		for ii := range hugeSlice {
+			h := &hugeSlice[ii]
+			sum += h.h
 		}
 	})
 
@@ -199,6 +206,9 @@ func get() *hugeStruct {
 func put(h *hugeStruct) {
 	h.h = 0
 	h.body = h.body[:0]
+	for i := range &h.cache {
+		h.cache[i] = 0
+	}
 	hugeStructPool.Put(h)
 }
 
