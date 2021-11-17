@@ -6,6 +6,7 @@ import (
 	customFmt "go-optimizations/fmt"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 	"unsafe"
@@ -237,24 +238,25 @@ func BenchmarkNewObjectWithSyncPool(b *testing.B) {
 	b.Logf("GC cycles: %d", stats.NumGC)
 }
 
-func dummyProcess() uint64 {
-	var sum uint64
-	for i := 0; i < 1000; i++ {
-		sum += uint64(i)
+func dummyProcess() int64 {
+	var sum int64
+	for i := int64(0); i < 1000; i++ {
+		sum += i
 	}
-	time.Sleep(time.Microsecond)
+	//time.Sleep(time.Microsecond)
 	return sum
 }
 
 func BenchmarkGoroutinesRaw(b *testing.B) {
 	b.StopTimer()
 	var wg sync.WaitGroup
+	var counter int64
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		wg.Add(benchCount)
 		for j := 0; j < benchCount; j++ {
 			go func() {
-				dummyProcess()
+				atomic.AddInt64(&counter, dummyProcess())
 				wg.Done()
 			}()
 		}
@@ -265,11 +267,13 @@ func BenchmarkGoroutinesRaw(b *testing.B) {
 	stats := checkMem()
 	b.Logf("memory usage:%d MB", stats.TotalAlloc/MiB)
 	b.Logf("GC cycles: %d", stats.NumGC)
+	b.Logf("%d", counter)
 }
 
 func BenchmarkGoroutinesSemaphore(b *testing.B) {
 	b.StopTimer()
 	var wg sync.WaitGroup
+	var counter int64
 	sema := make(chan struct{}, poolSize)
 
 	b.StartTimer()
@@ -278,7 +282,7 @@ func BenchmarkGoroutinesSemaphore(b *testing.B) {
 		for j := 0; j < benchCount; j++ {
 			sema <- struct{}{}
 			go func() {
-				dummyProcess()
+				atomic.AddInt64(&counter, dummyProcess())
 				<-sema
 				wg.Done()
 			}()
@@ -290,14 +294,16 @@ func BenchmarkGoroutinesSemaphore(b *testing.B) {
 	stats := checkMem()
 	b.Logf("memory usage:%d MB", stats.TotalAlloc/MiB)
 	b.Logf("GC cycles: %d", stats.NumGC)
+	b.Logf("%d", counter)
 }
 
 func BenchmarkReusableGoroutines(b *testing.B) {
 	b.StopTimer()
 	var wg sync.WaitGroup
+	var counter int64
 
 	p := pool.Create(context.Background(), func(ctx context.Context, task interface{}) {
-		dummyProcess()
+		atomic.AddInt64(&counter, dummyProcess())
 		wg.Done()
 	}, pool.WithCapacity(poolSize), pool.WithKeepAlive(5*time.Second))
 	defer func() {
@@ -317,6 +323,7 @@ func BenchmarkReusableGoroutines(b *testing.B) {
 	stats := checkMem()
 	b.Logf("memory usage:%d MB", stats.TotalAlloc/MiB)
 	b.Logf("GC cycles: %d", stats.NumGC)
+	b.Logf("%d", counter)
 }
 
 func BenchmarkGC(b *testing.B) {
