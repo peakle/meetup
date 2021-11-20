@@ -21,10 +21,10 @@ const (
 
 const (
 	extraSmallArraySize = 64 << (1 * iota)
-	_
-	_
-	_
+	smallArraySize
+	averageArraySize
 	mediumArraySize
+	bigArraySize
 	hugeArraySize
 )
 
@@ -34,13 +34,42 @@ const (
 	MiB
 )
 
-type hugeStruct struct {
-	h     uint64
-	cache [hugeArraySize]byte
-	body  []byte
-}
+type (
+	extraSmallStruct struct {
+		h     uint64
+		cache [extraSmallArraySize]byte
+		body  []byte
+	}
+	smallStruct struct {
+		h     uint64
+		cache [smallArraySize]byte
+		body  []byte
+	}
+	averageStruct struct {
+		h     uint64
+		cache [averageArraySize]byte
+		body  []byte
+	}
+	mediumStruct struct {
+		h     uint64
+		cache [mediumArraySize]byte
+		body  []byte
+	}
+	bigStruct struct {
+		h     uint64
+		cache [bigArraySize]byte
+		body  []byte
+	}
+	hugeStruct struct {
+		h     uint64
+		cache [hugeArraySize]byte
+		body  []byte
+	}
+)
 
-var hugeArray = [hugeArraySize]hugeStruct{}
+var hugeStructPool = sync.Pool{New: func() interface{} {
+	return &hugeStruct{body: make([]byte, 0, mediumArraySize)}
+}}
 
 func BenchmarkRangeValueCopy(b *testing.B) {
 	var sum uint64 = 0
@@ -77,6 +106,7 @@ func BenchmarkRangeValueCopy(b *testing.B) {
 func BenchmarkRangeArrayValue(b *testing.B) {
 	b.StopTimer()
 	var sum uint64 = 0
+	var hugeArray = [hugeArraySize]hugeStruct{}
 	b.StartTimer()
 
 	b.Run("range_array", func(b *testing.B) {
@@ -91,6 +121,7 @@ func BenchmarkRangeArrayValue(b *testing.B) {
 func BenchmarkRangeArrayWithPointer(b *testing.B) {
 	b.StopTimer()
 	var sum uint64 = 0
+	var hugeArray = [hugeArraySize]hugeStruct{}
 	b.StartTimer()
 
 	b.Run("range_array_with_pointer", func(b *testing.B) {
@@ -194,14 +225,8 @@ func BenchmarkNewObject(b *testing.B) {
 	b.Logf("GC cycles: %d", stats.NumGC)
 }
 
-var hugeStructPool sync.Pool
-
 func get() *hugeStruct {
-	h := hugeStructPool.Get()
-	if h == nil {
-		return &hugeStruct{body: make([]byte, 0, mediumArraySize)}
-	}
-	return h.(*hugeStruct)
+	return hugeStructPool.Get().(*hugeStruct)
 }
 
 func put(h *hugeStruct) {
@@ -410,25 +435,18 @@ func BenchmarkBytes(b *testing.B)   {}
 
 func BenchmarkInterfaceUsage(b *testing.B) {
 	b.StopTimer()
-	var (
-		h = &hugeStruct{
-			h:     0,
-			cache: [2048]byte{},
-			body:  make([]byte, hugeArraySize),
-		}
-		foo string
-	)
+	var foo string
 	b.StartTimer()
-
-	b.Run("fmt_sprintf", func(b *testing.B) {
-		for i := 0; i < benchCount; i++ {
-			foo = fmt.Sprintf("foo bar")
-		}
-	})
 
 	b.Run("fmt_sprint", func(b *testing.B) {
 		for i := 0; i < benchCount; i++ {
-			foo = fmt.Sprint("foo bar")
+			foo = fmt.Sprint("foo", "bar")
+		}
+	})
+
+	b.Run("fmt_sprintf", func(b *testing.B) {
+		for i := 0; i < benchCount; i++ {
+			foo = fmt.Sprintf("foo %s", "bar")
 		}
 	})
 
@@ -447,8 +465,6 @@ func BenchmarkInterfaceUsage(b *testing.B) {
 
 	foo = "bar"
 	_ = foo
-
-	dummyPointer(h)
 }
 
 func BenchmarkStructSizes(b *testing.B) {
@@ -466,6 +482,12 @@ func BenchmarkStructSizes(b *testing.B) {
 
 	b.Logf("%d", unsafe.Sizeof(struct1{}))
 	b.Logf("%d", unsafe.Sizeof(struct2{}))
+	b.Logf("%d", unsafe.Sizeof(extraSmallStruct{}))
+	b.Logf("%d", unsafe.Sizeof(smallStruct{}))
+	b.Logf("%d", unsafe.Sizeof(averageStruct{}))
+	b.Logf("%d", unsafe.Sizeof(mediumStruct{}))
+	b.Logf("%d", unsafe.Sizeof(bigStruct{}))
+	b.Logf("%d", unsafe.Sizeof(hugeStruct{}))
 }
 
 func checkMem() *runtime.MemStats {
