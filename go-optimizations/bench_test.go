@@ -14,6 +14,10 @@ import (
 	pool "github.com/delivery-club/bees"
 )
 
+//Как запускать бенчмарки:
+// go test --bench=BenchmarkNewObject$ --benchmem -v --count=10
+// go test --bench=. --benchmem -v --count=10
+
 const (
 	benchCount = 1000000
 	poolSize   = 500000
