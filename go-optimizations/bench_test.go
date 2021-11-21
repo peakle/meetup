@@ -17,6 +17,9 @@ import (
 //Как запускать бенчмарки:
 // go test --bench=BenchmarkNewObject$ --benchmem -v --count=10
 // go test --bench=. --benchmem -v --count=10
+// count - bench run count
+// benctime - count of iterations b.N
+// benchmem - report allocs
 
 const (
 	benchCount = 1000000
@@ -129,15 +132,6 @@ func BenchmarkRangeArrayValue(b *testing.B) {
 		}
 	})
 
-	_ = sum
-}
-
-func BenchmarkRangeArrayWithPointer(b *testing.B) {
-	b.StopTimer()
-	var sum uint64 = 0
-	var hugeArray = [hugeArraySize]hugeStruct{}
-	b.StartTimer()
-
 	b.Run("range_array_with_pointer", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			for _, v := range &hugeArray {
@@ -219,13 +213,13 @@ func dummyPointer(h *hugeStruct) *hugeStruct {
 
 func BenchmarkNewObject(b *testing.B) {
 	b.StopTimer()
+	var (
+		wg sync.WaitGroup
+		h  *hugeStruct
+	)
 	b.StartTimer()
 
 	b.Run("new_object", func(b *testing.B) {
-		var (
-			wg sync.WaitGroup
-			h  *hugeStruct
-		)
 		wg.Add(b.N)
 
 		for ii := 0; ii < b.N; ii++ {
@@ -242,6 +236,7 @@ func BenchmarkNewObject(b *testing.B) {
 	stats := checkMem()
 	b.Logf("memory usage:%d MB", stats.TotalAlloc/MiB)
 	b.Logf("GC cycles: %d", stats.NumGC)
+	b.Logf("counter: %d", h.h)
 }
 
 func get() *hugeStruct {
@@ -384,7 +379,7 @@ func BenchmarkGoroutinesSemaphore(b *testing.B) {
 	b.Logf("%d", counter)
 }
 
-func BenchmarkReusableGoroutines(b *testing.B) {
+func BenchmarkGoroutinesReusable(b *testing.B) {
 	b.StopTimer()
 	var (
 		wg      sync.WaitGroup
@@ -551,6 +546,67 @@ func BenchmarkStructSizes(b *testing.B) {
 	b.Logf("%d", unsafe.Sizeof(mediumStruct{}))
 	b.Logf("%d", unsafe.Sizeof(bigStruct{}))
 	b.Logf("%d", unsafe.Sizeof(hugeStruct{}))
+}
+
+type state struct {
+	c int64
+}
+const num = 1000000
+
+func BenchmarkAtomicBased(b *testing.B) {
+	var (
+		counter = &state{}
+		wg      sync.WaitGroup
+	)
+
+	atomicCounter := func(i int64) {
+		var taken bool
+
+		for !taken {
+			newCounter := i * time.Now().Unix()
+			taken = atomic.CompareAndSwapInt64(&counter.c, counter.c, newCounter)
+		}
+	}
+
+	process := func(i int64) {
+		atomicCounter(i)
+		wg.Done()
+	}
+
+	wg.Add(num)
+	for i := 0; i < num; i++ {
+		go process(int64(i))
+	}
+	wg.Wait()
+
+	fmt.Println(counter.c)
+}
+
+func BenchmarkMutexBased(b *testing.B) {
+	var (
+		counter = &state{}
+		wg      sync.WaitGroup
+		mu      sync.Mutex
+	)
+
+	mutexCounter := func(i int64) {
+		mu.Lock()
+		counter.c = i * time.Now().Unix()
+		mu.Unlock()
+	}
+
+	process := func(i int64) {
+		mutexCounter(i)
+		wg.Done()
+	}
+
+	wg.Add(num)
+	for i := 0; i < num; i++ {
+		go process(int64(i))
+	}
+	wg.Wait()
+
+	fmt.Println(counter.c)
 }
 
 func checkMem() *runtime.MemStats {
