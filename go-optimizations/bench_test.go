@@ -551,6 +551,7 @@ func BenchmarkStructSizes(b *testing.B) {
 type state struct {
 	c int64
 }
+
 const num = 1000000
 
 func BenchmarkAtomicBased(b *testing.B) {
@@ -564,7 +565,8 @@ func BenchmarkAtomicBased(b *testing.B) {
 
 		for !taken {
 			newCounter := i * time.Now().Unix()
-			taken = atomic.CompareAndSwapInt64(&counter.c, counter.c, newCounter)
+
+			taken = atomic.CompareAndSwapInt64(&counter.c, atomic.LoadInt64(&counter.c), newCounter)
 		}
 	}
 
@@ -579,7 +581,7 @@ func BenchmarkAtomicBased(b *testing.B) {
 	}
 	wg.Wait()
 
-	fmt.Println(counter.c)
+	_ = counter.c
 }
 
 func BenchmarkMutexBased(b *testing.B) {
@@ -606,7 +608,7 @@ func BenchmarkMutexBased(b *testing.B) {
 	}
 	wg.Wait()
 
-	fmt.Println(counter.c)
+	_ = counter.c
 }
 
 func checkMem() *runtime.MemStats {
