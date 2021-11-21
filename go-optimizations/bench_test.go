@@ -250,6 +250,7 @@ func BenchmarkNewObjectWithSyncPool(b *testing.B) {
 	hugeStructPool = sync.Pool{New: func() interface{} {
 		return &hugeStruct{body: make([]byte, 0, mediumArraySize)}
 	}}
+	var h *hugeStruct
 	b.StartTimer()
 	b.Run("new_object_with_sync_pool", func(b *testing.B) {
 		var wg sync.WaitGroup
@@ -257,7 +258,7 @@ func BenchmarkNewObjectWithSyncPool(b *testing.B) {
 
 		for ii := 0; ii < benchCount; ii++ {
 			go func() {
-				h := get()
+				h = get()
 				h = dummyPointer(h)
 				wg.Done()
 
@@ -271,6 +272,7 @@ func BenchmarkNewObjectWithSyncPool(b *testing.B) {
 	stats := checkMem()
 	b.Logf("memory usage:%d MB", stats.TotalAlloc/MiB)
 	b.Logf("GC cycles: %d", stats.NumGC)
+	b.Logf("counter: %d", h.h)
 }
 
 func dummyProcess() int64 {
@@ -284,10 +286,40 @@ func dummyProcess() int64 {
 
 func BenchmarkGoroutinesRaw(b *testing.B) {
 	b.StopTimer()
-	var wg sync.WaitGroup
-	var counter int64
+	var (
+		wg      sync.WaitGroup
+		counter int64
+		process = func() {
+			atomic.AddInt64(&counter, dummyProcess())
+			wg.Done()
+		}
+	)
 	b.StartTimer()
-	for i := 0; i < b.N; i++ {
+
+	b.Run("raw_goroutines", func(t *testing.B) {
+		wg.Add(benchCount)
+		for j := 0; j < benchCount; j++ {
+			go process()
+		}
+		wg.Wait()
+	})
+	b.StopTimer()
+
+	stats := checkMem()
+	b.Logf("memory usage:%d MB", stats.TotalAlloc/MiB)
+	b.Logf("GC cycles: %d", stats.NumGC)
+	b.Logf("%d", counter)
+}
+
+func BenchmarkGoroutinesRawNotOptimized(b *testing.B) {
+	b.StopTimer()
+	var (
+		wg      sync.WaitGroup
+		counter int64
+	)
+	b.StartTimer()
+
+	b.Run("raw_goroutines_not_optimized", func(t *testing.B) {
 		wg.Add(benchCount)
 		for j := 0; j < benchCount; j++ {
 			go func() {
@@ -295,8 +327,8 @@ func BenchmarkGoroutinesRaw(b *testing.B) {
 				wg.Done()
 			}()
 		}
-	}
-	wg.Wait()
+		wg.Wait()
+	})
 	b.StopTimer()
 
 	stats := checkMem()
@@ -307,23 +339,26 @@ func BenchmarkGoroutinesRaw(b *testing.B) {
 
 func BenchmarkGoroutinesSemaphore(b *testing.B) {
 	b.StopTimer()
-	var wg sync.WaitGroup
-	var counter int64
-	sema := make(chan struct{}, poolSize)
-
+	var (
+		wg      sync.WaitGroup
+		counter int64
+		sema    = make(chan struct{}, poolSize)
+		process = func() {
+			atomic.AddInt64(&counter, dummyProcess())
+			<-sema
+			wg.Done()
+		}
+	)
 	b.StartTimer()
-	for i := 0; i < b.N; i++ {
+
+	b.Run("semaphore", func(t *testing.B) {
 		wg.Add(benchCount)
 		for j := 0; j < benchCount; j++ {
 			sema <- struct{}{}
-			go func() {
-				atomic.AddInt64(&counter, dummyProcess())
-				<-sema
-				wg.Done()
-			}()
+			go process()
 		}
-	}
-	wg.Wait()
+		wg.Wait()
+	})
 	b.StopTimer()
 
 	stats := checkMem()
@@ -334,8 +369,10 @@ func BenchmarkGoroutinesSemaphore(b *testing.B) {
 
 func BenchmarkReusableGoroutines(b *testing.B) {
 	b.StopTimer()
-	var wg sync.WaitGroup
-	var counter int64
+	var (
+		wg      sync.WaitGroup
+		counter int64
+	)
 
 	p := pool.Create(context.Background(), func(ctx context.Context, task interface{}) {
 		atomic.AddInt64(&counter, dummyProcess())
@@ -346,13 +383,14 @@ func BenchmarkReusableGoroutines(b *testing.B) {
 	}()
 
 	b.StartTimer()
-	for i := 0; i < b.N; i++ {
+
+	b.Run("reusable_goroutines", func(b *testing.B) {
 		wg.Add(benchCount)
 		for j := 0; j < benchCount; j++ {
 			p.Submit(nil)
 		}
-	}
-	wg.Wait()
+		wg.Wait()
+	})
 	b.StopTimer()
 
 	stats := checkMem()
