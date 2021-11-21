@@ -289,14 +289,14 @@ func BenchmarkNewObjectWithSyncPool(b *testing.B) {
 
 var mu sync.Mutex
 
-func dummyProcess() int64 {
+func dummyProcess(rand int64) int64 {
 	var sum int64
 	for i := int64(0); i < 1000; i++ {
 		sum += i
 	}
 
 	mu.Lock()
-	sum += 2
+	sum += rand
 	mu.Unlock()
 
 	return sum
@@ -307,17 +307,17 @@ func BenchmarkGoroutinesRaw(b *testing.B) {
 	var (
 		wg      sync.WaitGroup
 		counter int64
-		process = func() {
-			atomic.AddInt64(&counter, dummyProcess())
+		process = func(num int64) {
+			atomic.AddInt64(&counter, dummyProcess(num))
 			wg.Done()
 		}
 	)
 	b.StartTimer()
 
-	b.Run("raw_goroutines", func(t *testing.B) {
+	b.Run("raw_goroutines", func(b *testing.B) {
 		wg.Add(b.N)
 		for j := 0; j < b.N; j++ {
-			go process()
+			go process(int64(j))
 		}
 		wg.Wait()
 	})
@@ -337,13 +337,13 @@ func BenchmarkGoroutinesRawNotOptimized(b *testing.B) {
 	)
 	b.StartTimer()
 
-	b.Run("raw_goroutines_not_optimized", func(t *testing.B) {
+	b.Run("raw_goroutines_not_optimized", func(b *testing.B) {
 		wg.Add(b.N)
 		for j := 0; j < b.N; j++ {
-			go func() {
-				atomic.AddInt64(&counter, dummyProcess())
+			go func(num int64) {
+				atomic.AddInt64(&counter, dummyProcess(num))
 				wg.Done()
-			}()
+			}(int64(j))
 		}
 		wg.Wait()
 	})
@@ -360,19 +360,19 @@ func BenchmarkGoroutinesSemaphore(b *testing.B) {
 		wg      sync.WaitGroup
 		counter int64
 		sema    = make(chan struct{}, poolSize)
-		process = func() {
-			atomic.AddInt64(&counter, dummyProcess())
+		process = func(num int64) {
+			atomic.AddInt64(&counter, dummyProcess(num))
 			<-sema
 			wg.Done()
 		}
 	)
 	b.StartTimer()
 
-	b.Run("semaphore", func(t *testing.B) {
+	b.Run("semaphore", func(b *testing.B) {
 		wg.Add(b.N)
 		for j := 0; j < b.N; j++ {
 			sema <- struct{}{}
-			go process()
+			go process(int64(j))
 		}
 		wg.Wait()
 	})
@@ -392,7 +392,7 @@ func BenchmarkReusableGoroutines(b *testing.B) {
 	)
 
 	p := pool.Create(context.Background(), func(ctx context.Context, task interface{}) {
-		atomic.AddInt64(&counter, dummyProcess())
+		atomic.AddInt64(&counter, dummyProcess(task.(int64)))
 		wg.Done()
 	}, pool.WithCapacity(poolSize), pool.WithKeepAlive(5*time.Second))
 	defer func() {
@@ -404,7 +404,7 @@ func BenchmarkReusableGoroutines(b *testing.B) {
 	b.Run("reusable_goroutines", func(b *testing.B) {
 		wg.Add(b.N)
 		for j := 0; j < b.N; j++ {
-			p.Submit(nil)
+			p.Submit(int64(j))
 		}
 		wg.Wait()
 	})
