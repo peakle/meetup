@@ -206,12 +206,15 @@ func BenchmarkNewObject(b *testing.B) {
 	b.StartTimer()
 
 	b.Run("new_object", func(b *testing.B) {
-		var wg sync.WaitGroup
+		var (
+			wg sync.WaitGroup
+			h  *hugeStruct
+		)
 		wg.Add(benchCount)
 
 		for ii := 0; ii < benchCount; ii++ {
 			go func() {
-				h := &hugeStruct{body: make([]byte, 0, mediumArraySize)}
+				h = &hugeStruct{body: make([]byte, 0, mediumArraySize)}
 				h = dummyPointer(h)
 				wg.Done()
 			}()
@@ -240,6 +243,9 @@ func put(h *hugeStruct) {
 
 func BenchmarkNewObjectWithSyncPool(b *testing.B) {
 	b.StopTimer()
+	hugeStructPool = sync.Pool{New: func() interface{} {
+		return &hugeStruct{body: make([]byte, 0, mediumArraySize)}
+	}}
 	b.StartTimer()
 	b.Run("new_object_with_sync_pool", func(b *testing.B) {
 		var wg sync.WaitGroup
