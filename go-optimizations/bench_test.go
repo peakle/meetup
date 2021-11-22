@@ -568,14 +568,19 @@ func BenchmarkAtomicBased(b *testing.B) {
 		var newCounter int64
 
 		for !taken {
-			newCounter = i + atomic.LoadInt64(&counter.c)
+			oldCounter := atomic.LoadInt64(&counter.c)
+			newCounter = i * oldCounter
 
-			taken = atomic.CompareAndSwapInt64(&counter.c, atomic.LoadInt64(&counter.c), newCounter)
+			taken = atomic.CompareAndSwapInt64(&counter.c, oldCounter, newCounter)
 		}
 		return newCounter
 	}
 
+	var trigger int64
+
 	process := func(i int64) {
+		for trigger == 0 {
+		}
 		atomicCounter(i)
 		wg.Done()
 	}
@@ -585,10 +590,11 @@ func BenchmarkAtomicBased(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			go process(int64(i))
 		}
+		atomic.StoreInt64(&trigger, 1)
 		wg.Wait()
 	})
 
-	_ = counter.c
+	b.Logf("counter: %d", counter.c)
 }
 
 func BenchmarkMutexBased(b *testing.B) {
@@ -600,14 +606,17 @@ func BenchmarkMutexBased(b *testing.B) {
 
 	mutexCounter := func(i int64) int64 {
 		mu.Lock()
-		newCounter := i + counter.c
+		newCounter := i * counter.c
 		counter.c = newCounter
 		mu.Unlock()
 
 		return newCounter
 	}
+	var trigger int64
 
 	process := func(i int64) {
+		for trigger == 0 {
+		}
 		mutexCounter(i)
 		wg.Done()
 	}
@@ -617,10 +626,11 @@ func BenchmarkMutexBased(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			go process(int64(i))
 		}
+		atomic.StoreInt64(&trigger, 1)
 		wg.Wait()
 	})
 
-	_ = counter.c
+	b.Logf("counter: %d", counter.c)
 }
 
 func checkMem() *runtime.MemStats {
