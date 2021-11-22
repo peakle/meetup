@@ -116,6 +116,9 @@ func BenchmarkRangeValueCopy(b *testing.B) {
 	})
 
 	b.Logf("sum: %d", sum)
+	stats := checkMem()
+	b.Logf("memory usage:%d MB", stats.TotalAlloc/MiB)
+	b.Logf("GC cycles: %d", stats.NumGC)
 }
 
 func BenchmarkRangeArrayValue(b *testing.B) {
@@ -560,14 +563,16 @@ func BenchmarkAtomicBased(b *testing.B) {
 		wg      sync.WaitGroup
 	)
 
-	atomicCounter := func(i int64) {
+	atomicCounter := func(i int64) int64 {
 		var taken bool
+		var newCounter int64
 
 		for !taken {
-			newCounter := i * time.Now().Unix()
+			newCounter = i + atomic.LoadInt64(&counter.c)
 
 			taken = atomic.CompareAndSwapInt64(&counter.c, atomic.LoadInt64(&counter.c), newCounter)
 		}
+		return newCounter
 	}
 
 	process := func(i int64) {
@@ -575,11 +580,13 @@ func BenchmarkAtomicBased(b *testing.B) {
 		wg.Done()
 	}
 
-	wg.Add(num)
-	for i := 0; i < num; i++ {
-		go process(int64(i))
-	}
-	wg.Wait()
+	b.Run("atomic_based_counter", func(b *testing.B) {
+		wg.Add(b.N)
+		for i := 0; i < b.N; i++ {
+			go process(int64(i))
+		}
+		wg.Wait()
+	})
 
 	_ = counter.c
 }
@@ -591,10 +598,13 @@ func BenchmarkMutexBased(b *testing.B) {
 		mu      sync.Mutex
 	)
 
-	mutexCounter := func(i int64) {
+	mutexCounter := func(i int64) int64 {
 		mu.Lock()
-		counter.c = i * time.Now().Unix()
+		newCounter := i + counter.c
+		counter.c = newCounter
 		mu.Unlock()
+
+		return newCounter
 	}
 
 	process := func(i int64) {
@@ -602,11 +612,13 @@ func BenchmarkMutexBased(b *testing.B) {
 		wg.Done()
 	}
 
-	wg.Add(num)
-	for i := 0; i < num; i++ {
-		go process(int64(i))
-	}
-	wg.Wait()
+	b.Run("mutex_based_counter", func(b *testing.B) {
+		wg.Add(b.N)
+		for i := 0; i < b.N; i++ {
+			go process(int64(i))
+		}
+		wg.Wait()
+	})
 
 	_ = counter.c
 }
