@@ -555,13 +555,9 @@ type state struct {
 	c int64
 }
 
-const num = 1000000
-
 func BenchmarkAtomicBased(b *testing.B) {
-	var (
-		counter = &state{}
-		wg      sync.WaitGroup
-	)
+	var counter = &state{}
+	const name = "atomic_based_counter"
 
 	atomicCounter := func(i int64) int64 {
 		var taken bool
@@ -576,34 +572,44 @@ func BenchmarkAtomicBased(b *testing.B) {
 		return newCounter
 	}
 
-	var trigger int64
-
-	process := func(i int64) {
-		for trigger == 0 {
-		}
-		atomicCounter(i)
-		wg.Done()
+	var res int64
+	for ng := 1; ng < 16; ng++ {
+		runner(b, name, ng, atomicCounter, &res)
+	}
+	for ng := 16; ng < 128; ng += 8 {
+		runner(b, name, ng, atomicCounter, &res)
+	}
+	for ng := 128; ng < 512; ng += 16 {
+		runner(b, name, ng, atomicCounter, &res)
+	}
+	for ng := 512; ng < 1024; ng += 32 {
+		runner(b, name, ng, atomicCounter, &res)
+	}
+	for ng := 1024; ng < 2048; ng += 64 {
+		runner(b, name, ng, atomicCounter, &res)
+	}
+	for ng := 2048; ng < 4096; ng += 128 {
+		runner(b, name, ng, atomicCounter, &res)
+	}
+	for ng := 4096; ng < 16384; ng += 512 {
+		runner(b, name, ng, atomicCounter, &res)
+	}
+	for ng := 16384; ng < 65536; ng += 2048 {
+		runner(b, name, ng, atomicCounter, &res)
+	}
+	for ng := 16384; ng < 65536; ng += 2048 {
+		runner(b, name, ng, atomicCounter, &res)
 	}
 
-	b.Run("atomic_based_counter", func(b *testing.B) {
-		wg.Add(b.N)
-		for i := 0; i < b.N; i++ {
-			go process(int64(i))
-		}
-		atomic.StoreInt64(&trigger, 1)
-		wg.Wait()
-	})
-
-	b.Logf("counter: %d", counter.c)
+	b.Logf("counter: %d", res)
 }
 
 func BenchmarkMutexBased(b *testing.B) {
 	var (
 		counter = &state{}
-		wg      sync.WaitGroup
 		mu      sync.Mutex
 	)
-
+	const name = "mutex_based_counter"
 	mutexCounter := func(i int64) int64 {
 		mu.Lock()
 		newCounter := i * counter.c
@@ -612,25 +618,75 @@ func BenchmarkMutexBased(b *testing.B) {
 
 		return newCounter
 	}
-	var trigger int64
 
-	process := func(i int64) {
-		for trigger == 0 {
-		}
-		mutexCounter(i)
-		wg.Done()
+	var res int64
+	for ng := 1; ng < 16; ng++ {
+		runner(b, name, ng, mutexCounter, &res)
+	}
+	for ng := 16; ng < 128; ng += 8 {
+		runner(b, name, ng, mutexCounter, &res)
+	}
+	for ng := 128; ng < 512; ng += 16 {
+		runner(b, name, ng, mutexCounter, &res)
+	}
+	for ng := 512; ng < 1024; ng += 32 {
+		runner(b, name, ng, mutexCounter, &res)
+	}
+	for ng := 1024; ng < 2048; ng += 64 {
+		runner(b, name, ng, mutexCounter, &res)
+	}
+	for ng := 2048; ng < 4096; ng += 128 {
+		runner(b, name, ng, mutexCounter, &res)
+	}
+	for ng := 4096; ng < 16384; ng += 512 {
+		runner(b, name, ng, mutexCounter, &res)
+	}
+	for ng := 16384; ng < 65536; ng += 2048 {
+		runner(b, name, ng, mutexCounter, &res)
+	}
+	for ng := 16384; ng < 65536; ng += 2048 {
+		runner(b, name, ng, mutexCounter, &res)
 	}
 
-	b.Run("mutex_based_counter", func(b *testing.B) {
-		wg.Add(b.N)
-		for i := 0; i < b.N; i++ {
-			go process(int64(i))
+	b.Logf("counter: %d", res)
+}
+
+func runner(b *testing.B, name string, ng int, procFunc func(i int64) int64, res *int64) bool {
+	return b.Run(fmt.Sprintf("type:%s-goroutines:%d", name, ng), func(b *testing.B) {
+		var wg sync.WaitGroup
+		var trigger int64 = 0
+		n := b.N
+		batchSize := n / ng
+		if batchSize == 0 {
+			batchSize = n
 		}
+		for n > 0 {
+			wg.Add(1)
+			batch := min(n, batchSize)
+			n -= batch
+			go func(quota int) {
+				for trigger == 0 {
+					runtime.Gosched()
+				}
+				for i := 0; i < quota; i++ {
+					atomic.AddInt64(res, procFunc(int64(i))) // process func
+				}
+				wg.Done()
+			}(batch)
+		}
+
+		b.StartTimer()
 		atomic.StoreInt64(&trigger, 1)
 		wg.Wait()
+		b.StopTimer()
 	})
+}
 
-	b.Logf("counter: %d", counter.c)
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func checkMem() *runtime.MemStats {
