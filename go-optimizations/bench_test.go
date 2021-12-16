@@ -3,13 +3,14 @@ package go_optimizations
 import (
 	"context"
 	"fmt"
-	customFmt "go-optimizations/fmt"
 	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 	"unsafe"
+
+	customFmt "go-optimizations/fmt"
 
 	pool "github.com/delivery-club/bees"
 )
@@ -752,6 +753,35 @@ func BenchmarkMutexBased(b *testing.B) {
 	for ng := 16384; ng < 65536; ng += 2048 {
 		runner(b, name, ng, mutexCounter)
 	}
+}
+
+// go test --bench=BenchmarkGoClosureInLoop --benchmem --count=3
+func BenchmarkGoClosureInLoop(b *testing.B) {
+	b.Run("go_closure_in_loop", func(b *testing.B) {
+		var wg sync.WaitGroup
+		for i := 0; i < b.N; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				dummyProcess(benchCount / 2)
+			}()
+			wg.Wait()
+		}
+	})
+
+	b.Run("go_closure", func(b *testing.B) {
+		var wg sync.WaitGroup
+		worker := func() {
+			defer wg.Done()
+			dummyProcess(benchCount / 2)
+		}
+
+		for i := 0; i < b.N; i++ {
+			wg.Add(1)
+			go worker()
+			wg.Wait()
+		}
+	})
 }
 
 // runner - run batched func for multiply goroutines
