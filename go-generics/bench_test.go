@@ -13,7 +13,7 @@ const (
 
 type (
 	Foo struct {
-		i int
+		i int // struct without params will be optimized us unused
 	}
 	Bar struct {
 		i int
