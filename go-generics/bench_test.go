@@ -71,6 +71,7 @@ var (
 	bar Bar
 )
 
+// go test -test.bench=BenchmarkStackInterface -count=3 -test.benchtime=100000000x
 func BenchmarkStackInterface(b *testing.B) {
 	var s StackInterface
 	for i := 0; i < b.N; i++ {
