@@ -167,9 +167,11 @@ func BenchmarkMakeCorrectUsage(b *testing.B) {
 	})
 }
 
+var tCopy hugeStruct
+
 func BenchmarkHugeParamByCopy(b *testing.B) {
 	b.StopTimer()
-	t := hugeStruct{
+	tCopy = hugeStruct{
 		h:     0,
 		cache: [2048]byte{},
 	}
@@ -178,7 +180,7 @@ func BenchmarkHugeParamByCopy(b *testing.B) {
 
 	b.Run("benchmark_huge_param_by_copy", func(b *testing.B) {
 		for ii := 0; ii < b.N; ii++ {
-			t = dummyCopy(t)
+			tCopy = dummyCopy(tCopy)
 		}
 	})
 }
@@ -191,9 +193,11 @@ func dummyCopy(h hugeStruct) hugeStruct {
 	return h
 }
 
+var tPointer *hugeStruct
+
 func BenchmarkHugeParamByPointer(b *testing.B) {
 	b.StopTimer()
-	t := &hugeStruct{
+	tPointer = &hugeStruct{
 		h:     0,
 		cache: [2048]byte{},
 	}
@@ -201,7 +205,7 @@ func BenchmarkHugeParamByPointer(b *testing.B) {
 	b.StartTimer()
 	b.Run("benchmark_huge_param_by_pointer", func(b *testing.B) {
 		for ii := 0; ii < b.N; ii++ {
-			t = dummyPointer(t)
+			tPointer = dummyPointer(tPointer)
 		}
 	})
 }
@@ -782,6 +786,47 @@ func BenchmarkGoClosureInLoop(b *testing.B) {
 			wg.Wait()
 		}
 	})
+}
+
+func BenchmarkTryLock(b *testing.B) {
+	const maxBackoff = 16
+	var (
+		wg   sync.WaitGroup
+		mu   = &sync.Mutex{}
+		lock int32
+	)
+	runnerParallel(b, "try_lock", 100000, func(i int64) {
+		backoff := 1
+
+		for !mu.TryLock() {
+			for i := 0; i < backoff; i++ {
+				runtime.Gosched()
+			}
+			if backoff < maxBackoff {
+				backoff <<= 1
+			}
+		}
+		mu.Unlock()
+	}, &wg)
+
+	runnerParallel(b, "mutex", 100000, func(i int64) {
+		mu.Lock()
+		mu.Unlock()
+	}, &wg)
+
+	runnerParallel(b, "cas", 100000, func(i int64) {
+		backoff := 1
+
+		for !atomic.CompareAndSwapInt32(&lock, 0, 1) {
+			for i := 0; i < backoff; i++ {
+				runtime.Gosched()
+			}
+			if backoff < maxBackoff {
+				backoff <<= 1
+			}
+		}
+		atomic.StoreInt32(&lock, 0)
+	}, &wg)
 }
 
 // runner - run batched func for multiply goroutines
