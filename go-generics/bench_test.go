@@ -65,10 +65,25 @@ func (s *StackFoo) Push(value Foo) {
 	*s = append(*s, value)
 }
 
+////// Generic function ////////////////////
+
+func Peek[T any](s []T) T {
+	return s[len(s)-1]
+}
+
+func  Pop[T any](s []T) []T{
+	s = s[:len(s)-1]
+	return s
+}
+
+func  Push[T any](s []T, value T)[]T {
+	s = append(s, value)
+	return s
+}
 ////// Global vars for disable compiler optimizations for loops //////
 var (
-	foo Foo
-	bar Bar
+	foo   Foo
+	bar   Bar
 )
 
 // go test -test.bench=BenchmarkStackInterface -count=3 -test.benchtime=100000000x
@@ -124,6 +139,22 @@ func BenchmarkStackTyped(b *testing.B) {
 		s.Push(Foo{})
 		s.Pop()
 		foo = s.Peek()
+	}
+
+	b.StopTimer()
+	stats := checkMem()
+	b.Logf("memory usage:%d MB", stats.TotalAlloc/MiB)
+	b.Logf("GC cycles: %d", stats.NumGC)
+}
+
+//go:noinnline
+func BenchmarkStackGenericFunc(b *testing.B) {
+	var s StackFoo
+	for i := 0; i < b.N; i++ {
+		s = Push(s, Foo{})
+		s = Push(s, Foo{})
+		s = Pop(s)
+		foo = Peek(s)
 	}
 
 	b.StopTimer()
