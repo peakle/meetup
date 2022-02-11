@@ -795,19 +795,21 @@ func BenchmarkTryLock(b *testing.B) {
 		mu   = &sync.Mutex{}
 		lock int32
 	)
-	runnerParallel(b, "try_lock", 100000, func(i int64) {
-		backoff := 1
 
-		for !mu.TryLock() {
-			for i := 0; i < backoff; i++ {
-				runtime.Gosched()
-			}
-			if backoff < maxBackoff {
-				backoff <<= 1
-			}
-		}
-		mu.Unlock()
-	}, &wg)
+	// only for > go 1.18.1
+	//runnerParallel(b, "try_lock", 100000, func(i int64) {
+	//	backoff := 1
+	//
+	//	for !mu.TryLock() {
+	//		for i := 0; i < backoff; i++ {
+	//			runtime.Gosched()
+	//		}
+	//		if backoff < maxBackoff {
+	//			backoff <<= 1
+	//		}
+	//	}
+	//	mu.Unlock()
+	//}, &wg)
 
 	runnerParallel(b, "mutex", 100000, func(i int64) {
 		mu.Lock()
@@ -827,6 +829,29 @@ func BenchmarkTryLock(b *testing.B) {
 		}
 		atomic.StoreInt32(&lock, 0)
 	}, &wg)
+}
+
+func BenchmarkTicker(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = time.NewTicker(time.Second)
+	}
+	stats := checkMem()
+	b.Logf("memory usage: %d MB", stats.TotalAlloc/MiB)
+	b.Logf("GC cycles: %d", stats.NumGC)
+	b.Logf("Heap size: %d", stats.HeapObjects)
+	b.Logf("goroutines count: %d", runtime.NumGoroutine())
+}
+
+func BenchmarkTickerWithStop(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		ticker := time.NewTicker(time.Second)
+		ticker.Stop()
+	}
+	stats := checkMem()
+	b.Logf("memory usage: %d MB", stats.TotalAlloc/MiB)
+	b.Logf("GC cycles: %d", stats.NumGC)
+	b.Logf("Heap size: %d", stats.HeapObjects)
+	b.Logf("goroutines count: %d", runtime.NumGoroutine())
 }
 
 // runner - run batched func for multiply goroutines
