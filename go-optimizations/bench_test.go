@@ -854,6 +854,29 @@ func BenchmarkTickerWithStop(b *testing.B) {
 	b.Logf("goroutines count: %d", runtime.NumGoroutine())
 }
 
+func BenchmarkTimer(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = time.NewTimer(time.Second)
+	}
+	stats := checkMem()
+	b.Logf("memory usage: %d MB", stats.TotalAlloc/MiB)
+	b.Logf("GC cycles: %d", stats.NumGC)
+	b.Logf("Heap size: %d", stats.HeapObjects)
+	b.Logf("goroutines count: %d", runtime.NumGoroutine())
+}
+
+func BenchmarkTimerWithStop(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		ticker := time.NewTimer(time.Second)
+		ticker.Stop()
+	}
+	stats := checkMem()
+	b.Logf("memory usage: %d MB", stats.TotalAlloc/MiB)
+	b.Logf("GC cycles: %d", stats.NumGC)
+	b.Logf("Heap size: %d", stats.HeapObjects)
+	b.Logf("goroutines count: %d", runtime.NumGoroutine())
+}
+
 // runner - run batched func for multiply goroutines
 func runner(b *testing.B, name string, ng int, procFunc func(i int64) int64) bool {
 	return b.Run(fmt.Sprintf("type:%s-goroutines:%d", name, ng), func(b *testing.B) {
